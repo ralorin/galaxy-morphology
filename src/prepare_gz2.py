@@ -10,17 +10,28 @@ What comes out of it, in $GZM_WORK/arrays:
                      hard label, split, row index into the image array
     gz2_images.npy   uint8 memmap, (N, 160, 160, 3), rows aligned with the table
 
-Two decisions worth spelling out, because the rest of the paper depends on them.
+Three decisions worth spelling out, because the rest of the paper depends on them.
 
-1. The label. We do not use the first letter of `gz2_class`. That string is the
+1. The question. We do not use the first letter of `gz2_class`. That string is the
    single class Hart et al. assign to each galaxy and its early-type bin quietly
    absorbs lenticulars and edge-on disks, which is not the question we want to
    ask. Instead we take task 01 of the decision tree ("smooth and rounded, or
-   features/disk?"), renormalise its two galaxy answers, and keep the resulting
-   fraction as a continuous target. The volunteers answered exactly this
-   question, so the fraction is a direct measure of how much they agreed.
+   features/disk?") and renormalise its two galaxy answers.
 
-2. The crop. GZ2 jpegs are 424x424 with a per-galaxy pixel scale; the target sits
+2. Raw fractions, not debiased ones. Hart et al. publish both, and the debiased
+   values are the better estimate of intrinsic morphology, so the obvious choice
+   looks wrong until you notice two things. First, the debiasing corrects for
+   redshift-dependent classification bias, which means the debiased value depends
+   on the galaxy's redshift -- information that is simply not in a cutout. Asking
+   a network to predict it is asking it to predict something partly unavailable in
+   its input. Second, and this is what the paper's argument rests on, the vote
+   model needs the label to be a threshold on a *sampled proportion* of a known
+   number of draws. A debiased value is no longer a proportion. So `p_featured` is
+   the raw fraction; `p_featured_debiased` is kept alongside it for the
+   sensitivity check, and it is worth knowing that on this catalogue the two
+   correlate at only about 0.74, so the choice is not cosmetic.
+
+3. The crop. GZ2 jpegs are 424x424 with a per-galaxy pixel scale; the target sits
    in the centre and the corners are full of unrelated objects. We take the
    central 224x224 and cache at 160x160, following the crop-and-downsample recipe
    of Dieleman et al. (2015). Models resize from the cache to whatever input they
@@ -110,16 +121,15 @@ def build_table() -> pd.DataFrame:
         raise SystemExit(f"missing {config.GZ2_CATALOG}; run src.download_data first")
 
     header = pd.read_csv(config.GZ2_CATALOG, nrows=0).columns.tolist()
-    frac_cols, suffix = _fraction_columns(header)
-    print(f"using '{suffix}' vote fractions for task 01 (the training target)")
-
-    # The raw, unweighted fractions are what the binomial vote model in the
-    # analysis needs: they are counts over a known number of votes, whereas the
-    # debiased values have been corrected for redshift-dependent bias and are no
-    # longer a simple proportion.
+    # The raw fractions are the target: a proportion of a known number of draws,
+    # and a function of what the volunteers actually saw. See the module docstring.
     raw_cols, raw_suffix = _fraction_columns(header, ("fraction", "weighted_fraction",
                                                       "debiased"))
-    print(f"using '{raw_suffix}' vote fractions for the vote model")
+    print(f"using '{raw_suffix}' vote fractions as the target and for the vote model")
+
+    # The debiased values are carried along for the sensitivity check only.
+    frac_cols, suffix = _fraction_columns(header)
+    print(f"carrying '{suffix}' vote fractions for the sensitivity check")
 
     count_cols, count_how = _vote_count_columns(header)
     print(f"using {count_how} as the vote count")
@@ -135,31 +145,31 @@ def build_table() -> pd.DataFrame:
     df = df.drop(columns=["objid"])
     print(f"after joining the filename mapping: {len(df):,} rows")
 
-    f_smooth = df[frac_cols["smooth"]].to_numpy(dtype=np.float64)
-    f_feat = df[frac_cols["featured"]].to_numpy(dtype=np.float64)
-    f_art = df[frac_cols["artifact"]].to_numpy(dtype=np.float64)
     r_smooth = df[raw_cols["smooth"]].to_numpy(dtype=np.float64)
     r_feat = df[raw_cols["featured"]].to_numpy(dtype=np.float64)
+    r_art = df[raw_cols["artifact"]].to_numpy(dtype=np.float64)
+    d_smooth = df[frac_cols["smooth"]].to_numpy(dtype=np.float64)
+    d_feat = df[frac_cols["featured"]].to_numpy(dtype=np.float64)
     votes = df[count_cols].sum(axis=1).to_numpy(dtype=np.float64)
 
-    galaxy_mass = f_smooth + f_feat
+    galaxy_mass = r_smooth + r_feat
     keep = (
-        np.isfinite(f_smooth) & np.isfinite(f_feat) & np.isfinite(f_art)
-        & (f_art <= config.ARTIFACT_MAX)
+        np.isfinite(r_smooth) & np.isfinite(r_feat) & np.isfinite(r_art)
+        & (r_art <= config.ARTIFACT_MAX)
         & (galaxy_mass > 1e-6)
         & (votes >= config.MIN_VOTES)
     )
     dropped = {
-        "artifact": int(((f_art > config.ARTIFACT_MAX) & np.isfinite(f_art)).sum()),
+        "artifact": int(((r_art > config.ARTIFACT_MAX) & np.isfinite(r_art)).sum()),
         "few_votes": int((votes < config.MIN_VOTES).sum()),
-        "no_fraction": int((~np.isfinite(f_smooth) | ~np.isfinite(f_feat)).sum()),
+        "no_fraction": int((~np.isfinite(r_smooth) | ~np.isfinite(r_feat)).sum()),
     }
     print(f"dropped {dict(dropped)}")
 
     df = df.loc[keep].copy()
-    p = f_feat[keep] / galaxy_mass[keep]
-    raw_mass = np.clip(r_smooth[keep] + r_feat[keep], 1e-6, None)
-    p_raw = np.clip(r_feat[keep] / raw_mass, 0.0, 1.0)
+    p = np.clip(r_feat[keep] / galaxy_mass[keep], 0.0, 1.0)
+    debiased_mass = np.clip(d_smooth[keep] + d_feat[keep], 1e-6, None)
+    p_debiased = np.clip(d_feat[keep] / debiased_mass, 0.0, 1.0)
 
     out = pd.DataFrame({
         "asset_id": df["asset_id"].to_numpy(dtype=np.int64),
@@ -167,8 +177,10 @@ def build_table() -> pd.DataFrame:
         "ra": df["ra"].to_numpy(dtype=np.float64),
         "dec": df["dec"].to_numpy(dtype=np.float64),
         "gz2_class": df["gz2_class"].to_numpy(),
+        # the target and the quantity everything else is defined from
         "p_featured": p,
-        "p_featured_raw": p_raw,
+        # kept only for the sensitivity check on the vote model
+        "p_featured_debiased": p_debiased,
         "votes": votes[keep].astype(np.int32),
         # |2p-1|: 0 when the volunteers split evenly, 1 when they were unanimous
         "agreement": np.abs(2.0 * p - 1.0),
@@ -176,7 +188,9 @@ def build_table() -> pd.DataFrame:
     })
     out = out.sort_values("asset_id").reset_index(drop=True)
     print(f"kept {len(out):,} galaxies "
-          f"({100 * out['label'].mean():.1f}% featured)")
+          f"({100 * out['label'].mean():.1f}% featured); "
+          f"raw and debiased thresholds disagree on "
+          f"{100 * np.mean((p > 0.5) != (p_debiased > 0.5)):.1f}% of them")
     return out
 
 

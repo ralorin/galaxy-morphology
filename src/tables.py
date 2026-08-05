@@ -400,7 +400,8 @@ def macros(runs: pd.DataFrame) -> str:
         cmd("softAccGain", f"{100 * (pair[('test_accuracy', 'soft')] - pair[('test_accuracy', 'hard')]).mean():.2f}")
         cmd("softAucGain", f"{1000 * (pair[('test_auc_roc', 'soft')] - pair[('test_auc_roc', 'hard')]).mean():.1f}")
 
-    # accuracy in the extreme agreement bins
+    # accuracy in the extreme agreement bins, with the within-bin majority baseline
+    # so the two ends are comparable (the class prior differs a lot between them)
     apath = config.RESULTS / "agreement.csv"
     if apath.exists():
         agr = pd.read_csv(apath)
@@ -412,6 +413,24 @@ def macros(runs: pd.DataFrame) -> str:
             cmd("accLowAgreement", f"{100 * lo['accuracy'].mean():.1f}")
             cmd("shareLowAgreement", f"{100 * lo['share'].mean():.1f}")
             cmd("shareHighAgreement", f"{100 * hi['share'].mean():.1f}")
+            for tag, frame in (("High", hi), ("Low", lo)):
+                if "majority_baseline" in frame:
+                    cmd(f"baseline{tag}Agreement",
+                        f"{100 * frame['majority_baseline'].mean():.1f}")
+                if "balanced_accuracy" in frame:
+                    cmd(f"balAcc{tag}Agreement",
+                        f"{100 * frame['balanced_accuracy'].mean():.1f}")
+                if "lift" in frame:
+                    cmd(f"lift{tag}Agreement", f"{100 * frame['lift'].mean():+.1f}")
+                if "error_share" in frame:
+                    cmd(f"errorShare{tag}Agreement",
+                        f"{100 * frame['error_share'].mean():.0f}")
+            # the three contested bins together, which is how the prose reads it
+            contested = agr[agr["bin"] <= 2]
+            if not contested.empty and "error_share" in contested:
+                per_run = contested.groupby("run_id")[["share", "error_share"]].sum()
+                cmd("shareContested", f"{100 * per_run['share'].mean():.0f}")
+                cmd("errorShareContested", f"{100 * per_run['error_share'].mean():.0f}")
 
     # selective prediction
     spath = config.RESULTS / "selective.csv"
@@ -528,6 +547,10 @@ MACRO_NAMES = (
     "bestSoftArch bestSoftAccuracy bestSoftAccuracySd bestSoftAuc bestSoftEce "
     "softEceGain softAccGain softAucGain "
     "accHighAgreement accLowAgreement shareLowAgreement shareHighAgreement "
+    "baselineHighAgreement baselineLowAgreement balAccHighAgreement "
+    "balAccLowAgreement liftHighAgreement liftLowAgreement "
+    "errorShareHighAgreement errorShareLowAgreement "
+    "shareContested errorShareContested "
     "coverageAtNinetyNine coverageAtNinetyEight coverageAtNinetyFive coverageArch "
     "dihedralGain invarianceErrorPlain pooledGain "
     "pretrainGain pretrainGainMax frozenPenalty "

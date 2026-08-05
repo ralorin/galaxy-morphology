@@ -129,7 +129,7 @@ def panel_probability(p: np.ndarray, n: np.ndarray) -> np.ndarray:
     return np.clip(strictly_more + 0.5 * tie, 0.0, 1.0)
 
 
-def vote_ceiling(table: pd.DataFrame, column: str = "p_featured_raw") -> dict:
+def vote_ceiling(table: pd.DataFrame, column: str = "p_featured") -> dict:
     """Ceilings implied by the volunteer votes on the test split."""
     test = table[table["split"] == "test"] if "split" in table else table
     p = test[column].to_numpy(dtype=np.float64)
@@ -165,6 +165,13 @@ def agreement_profile(runs: pd.DataFrame, prob_column: str = "prob") -> pd.DataF
     This is the central measurement of the paper: if the residual error is
     concentrated where the volunteers disagreed, the ceiling is a property of the
     labels; if it is spread evenly, it is a property of the models.
+
+    The class prior varies a great deal between bins on this catalogue -- the
+    near-unanimous bin is mostly featured, the 0.6-0.8 bin mostly smooth -- so raw
+    accuracy is not comparable across bins on its own. We therefore also record the
+    within-bin majority baseline and the balanced accuracy, and the figure plots the
+    baseline alongside the curve. `lift` is accuracy minus that baseline, which is
+    the honest quantity to compare between bins.
     """
     edges = np.array(config.AGREEMENT_BINS)
     rows = []
@@ -175,11 +182,16 @@ def agreement_profile(runs: pd.DataFrame, prob_column: str = "prob") -> pd.DataF
         col = prob_column if prob_column in pred else "prob"
         idx = np.clip(np.digitize(pred["agreement"].to_numpy(), edges[1:-1]), 0,
                       len(edges) - 2)
+        total_errors = float((((pred[col] >= 0.5).astype(int) != pred["label"]).sum()))
         for b in range(len(edges) - 1):
             m = idx == b
             if m.sum() < 20:
                 continue
-            metrics = classification_metrics(pred.loc[m, "label"], pred.loc[m, col])
+            y = pred.loc[m, "label"]
+            metrics = classification_metrics(y, pred.loc[m, col])
+            prior = float(y.mean())
+            baseline = max(prior, 1.0 - prior)
+            errors = float(((pred.loc[m, col] >= 0.5).astype(int) != y).sum())
             rows.append({
                 "run_id": run_id,
                 "bin": b,
@@ -187,6 +199,11 @@ def agreement_profile(runs: pd.DataFrame, prob_column: str = "prob") -> pd.DataF
                 "agreement_high": edges[b + 1],
                 "n": int(m.sum()),
                 "share": float(m.mean()),
+                "featured_fraction": prior,
+                "majority_baseline": baseline,
+                "lift": metrics["accuracy"] - baseline,
+                # what fraction of the model's total errors this bin accounts for
+                "error_share": errors / total_errors if total_errors else 0.0,
                 **{k: metrics[k] for k in ("accuracy", "balanced_accuracy", "auc_roc",
                                            "ece", "brier", "n")},
             })
@@ -316,10 +333,12 @@ def summarise(runs: pd.DataFrame, agreement: pd.DataFrame, ceiling: dict,
 
     if not agreement.empty:
         top = agreement[agreement["label_mode"] == "soft"]
-        by_bin = top.groupby("bin")[["accuracy", "share", "n"]].mean()
+        cols = ["accuracy", "balanced_accuracy", "majority_baseline", "lift",
+                "error_share", "share", "n"]
+        by_bin = top.groupby("bin")[[c for c in cols if c in top]].mean()
         out["accuracy_by_agreement_bin"] = {
             f"{config.AGREEMENT_BINS[int(b)]:.1f}-{config.AGREEMENT_BINS[int(b) + 1]:.1f}":
-                {"accuracy": float(r["accuracy"]), "share": float(r["share"])}
+                {k: float(v) for k, v in r.items()}
             for b, r in by_bin.iterrows()
         }
     if not selective.empty:
@@ -342,8 +361,9 @@ def main() -> None:
     runs.to_csv(config.RESULTS / "runs.csv", index=False)
 
     table = load_table("gz2")
-    ceiling = vote_ceiling(table, "p_featured_raw")
-    ceiling_debiased = vote_ceiling(table, "p_featured")
+    ceiling = vote_ceiling(table, "p_featured")
+    ceiling_debiased = vote_ceiling(table, "p_featured_debiased") \
+        if "p_featured_debiased" in table else {}
     write_json(config.RESULTS / "ceiling.json",
                {"raw": ceiling, "debiased_sensitivity": ceiling_debiased})
     print(f"vote-model ceiling: best possible accuracy against a fresh panel = "

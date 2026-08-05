@@ -134,49 +134,78 @@ def fig_agreement(out_dir: Path) -> None:
 
     sub = agr[(agr["policy"] == "d4") & (agr["finetune"] == "full")
               & (agr["train_size"].fillna(0) == 0)]
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.0), sharey=True)
+    if sub.empty:
+        print("skipping fig_agreement: no reference runs")
+        return
 
-    for ax, mode in zip(axes, ("hard", "soft")):
+    def centres_of(index):
+        return [(config.AGREEMENT_BINS[int(b)] + config.AGREEMENT_BINS[int(b) + 1]) / 2
+                for b in index]
+
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.2), sharex=True,
+                             gridspec_kw={"height_ratios": [1.0, 0.62], "hspace": 0.18,
+                                          "wspace": 0.12})
+
+    for col, mode in enumerate(("hard", "soft")):
         part = sub[sub["label_mode"] == mode]
+        ax = axes[0, col]
         if part.empty:
+            ax.axis("off"); axes[1, col].axis("off")
             continue
+
         for family in ("custom", "cnn", "transformer"):
             archs = [a for a in ARCHITECTURES if family_of(a) == family]
             block = part[part["arch"].isin(archs)]
             if block.empty:
                 continue
             grouped = block.groupby("bin")["accuracy"]
-            centres = [(config.AGREEMENT_BINS[int(b)] + config.AGREEMENT_BINS[int(b) + 1]) / 2
-                       for b in grouped.mean().index]
+            centres = centres_of(grouped.mean().index)
             ax.plot(centres, grouped.mean().to_numpy(), "-o", ms=3.5,
                     color=FAMILY_COLOUR[family], label=PRETTY_FAMILY[family])
             ax.fill_between(centres,
                             (grouped.mean() - grouped.std()).to_numpy(),
                             (grouped.mean() + grouped.std()).to_numpy(),
                             color=FAMILY_COLOUR[family], alpha=0.15, lw=0)
-        # what fraction of the test set each bin holds
-        share = part.groupby("bin")["share"].mean()
-        twin = ax.twinx()
-        twin.bar([(config.AGREEMENT_BINS[int(b)] + config.AGREEMENT_BINS[int(b) + 1]) / 2
-                  for b in share.index], share.to_numpy(), width=0.16,
-                 color="#cccccc", alpha=0.55, zorder=0)
-        twin.set_ylim(0, 1.0)
-        twin.grid(False)
-        twin.set_ylabel("share of test set" if mode == "soft" else "")
-        if mode != "soft":
-            twin.set_yticklabels([])
-        ax.set_zorder(twin.get_zorder() + 1)
-        ax.patch.set_visible(False)
+
+        # The class prior swings between bins, so accuracy on its own is not
+        # comparable across them. Draw the within-bin majority baseline: the gap
+        # between a curve and this line is what the model actually contributes.
+        if "majority_baseline" in part:
+            base = part.groupby("bin")["majority_baseline"].mean()
+            ax.plot(centres_of(base.index), base.to_numpy(), "--", color="#999999",
+                    lw=1.0, label="majority baseline in bin")
 
         if ceiling:
             ax.axhline(ceiling["bayes_accuracy"], color="k", ls=":", lw=0.9)
             ax.text(0.02, ceiling["bayes_accuracy"] + 0.008,
-                    "vote-model ceiling (whole set)", fontsize=6.5)
-        ax.set_xlabel(r"volunteer agreement $|2p-1|$")
+                    r"$A^\star$ (whole test set)", fontsize=6.5)
+
         ax.set_title(f"({'a' if mode == 'hard' else 'b'}) {mode} labels", loc="left")
-        ax.set_ylim(0.45, 1.02)
-    axes[0].set_ylabel("test accuracy")
-    axes[0].legend(loc="lower right", frameon=False)
+        ax.set_ylim(0.35, 1.02)
+        if col == 0:
+            ax.set_ylabel("test accuracy")
+        else:
+            ax.tick_params(labelleft=False)
+
+        # lower panel: how the test set and the errors are distributed over the bins
+        ax2 = axes[1, col]
+        share = part.groupby("bin")["share"].mean()
+        x = np.array(centres_of(share.index))
+        ax2.bar(x - 0.04, share.to_numpy(), width=0.075, color="#bbbbbb",
+                label="share of test set")
+        if "error_share" in part:
+            err = part.groupby("bin")["error_share"].mean()
+            ax2.bar(x + 0.04, err.to_numpy(), width=0.075, color="#c1512c",
+                    label="share of all errors")
+        ax2.set_ylim(0, max(0.6, float(share.max()) * 1.15))
+        ax2.set_xlabel(r"volunteer agreement $|2p-1|$")
+        if col == 0:
+            ax2.set_ylabel("fraction")
+            ax2.legend(frameon=False, fontsize=7)
+        else:
+            ax2.tick_params(labelleft=False)
+
+    axes[0, 0].legend(loc="lower right", frameon=False, fontsize=7)
     _save(fig, out_dir, "fig_agreement")
 
 
