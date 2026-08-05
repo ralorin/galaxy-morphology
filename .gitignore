@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# raw data is not redistributed here, see README
+data/
+*.h5
+*.zip
+*.csv.gz
+
+# everything the pipeline writes
+work/
+*.npy
+*.pt
+*.pth
+
+# slurm output
+logs/*.out
+logs/*.err
