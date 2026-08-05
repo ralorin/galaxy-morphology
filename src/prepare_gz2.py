@@ -72,6 +72,39 @@ def _fraction_columns(header: list[str], suffixes=("debiased", "weighted_fractio
     )
 
 
+def _vote_count_columns(header: list[str]) -> tuple[list[str], str]:
+    """Find how many people answered task 01, per galaxy.
+
+    Different releases of the table name the per-task total differently, so rather
+    than guessing we prefer the definition: the number of votes on task 01 is the
+    sum of the counts of its three answers. Those per-answer `_count` columns are
+    the one thing the schema has always had. A published total column is used when
+    present, since it is cheaper to read, and the weights are the last resort --
+    they are effective sample sizes rather than integers, but they are the right
+    order of magnitude for the binomial.
+    """
+    for name in (f"{config.T01}_total_count", f"{config.T01}_count",
+                 f"{config.T01}_total_classifications", "total_classifications",
+                 "total_votes"):
+        if name in header:
+            return [name], f"'{name}'"
+
+    answer_counts = [f"{a}_count" for a in
+                     (config.T01_SMOOTH, config.T01_FEATURED, config.T01_ARTIFACT)]
+    if all(c in header for c in answer_counts):
+        return answer_counts, "the sum of the three task-01 answer counts"
+
+    answer_weights = [f"{a}_weight" for a in
+                      (config.T01_SMOOTH, config.T01_FEATURED, config.T01_ARTIFACT)]
+    if all(c in header for c in answer_weights):
+        return answer_weights, "the sum of the three task-01 answer weights"
+
+    raise SystemExit(
+        f"no vote-count column for {config.T01}. Columns starting with "
+        f"'{config.T01}': " + ", ".join(c for c in header if c.startswith(config.T01))
+    )
+
+
 def build_table() -> pd.DataFrame:
     if not config.GZ2_CATALOG.exists():
         raise SystemExit(f"missing {config.GZ2_CATALOG}; run src.download_data first")
@@ -88,14 +121,10 @@ def build_table() -> pd.DataFrame:
                                                       "debiased"))
     print(f"using '{raw_suffix}' vote fractions for the vote model")
 
-    count_col = next((c for c in (f"{config.T01}_total_count",
-                                  f"{config.T01}_count",
-                                  f"{config.T01}_total_weight") if c in header), None)
-    if count_col is None:
-        raise SystemExit(f"no vote-count column for {config.T01}")
-    print(f"using '{count_col}' as the vote count")
+    count_cols, count_how = _vote_count_columns(header)
+    print(f"using {count_how} as the vote count")
 
-    usecols = sorted({"dr7objid", "ra", "dec", "gz2_class", count_col,
+    usecols = sorted({"dr7objid", "ra", "dec", "gz2_class", *count_cols,
                       *frac_cols.values(), *raw_cols.values()})
     with timer("read catalogue"):
         cat = pd.read_csv(config.GZ2_CATALOG, usecols=usecols)
@@ -111,7 +140,7 @@ def build_table() -> pd.DataFrame:
     f_art = df[frac_cols["artifact"]].to_numpy(dtype=np.float64)
     r_smooth = df[raw_cols["smooth"]].to_numpy(dtype=np.float64)
     r_feat = df[raw_cols["featured"]].to_numpy(dtype=np.float64)
-    votes = df[count_col].to_numpy(dtype=np.float64)
+    votes = df[count_cols].sum(axis=1).to_numpy(dtype=np.float64)
 
     galaxy_mass = f_smooth + f_feat
     keep = (
@@ -258,7 +287,31 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stage", choices=["table", "images", "all"], default="all")
     ap.add_argument("--workers", type=int, default=None)
+    ap.add_argument("--inspect", action="store_true",
+                    help="print the task-01 columns the catalogue actually has, and "
+                         "which ones we would use, then stop")
     args = ap.parse_args()
+
+    if args.inspect:
+        header = pd.read_csv(config.GZ2_CATALOG, nrows=0).columns.tolist()
+        print(f"{len(header)} columns in {config.GZ2_CATALOG.name}\n")
+        print(f"columns matching '{config.T01}':")
+        for c in header:
+            if c.startswith(config.T01):
+                print(f"  {c}")
+        print("\ncolumns that look like a global count:")
+        for c in header:
+            if "total" in c.lower() or c.lower().endswith("_count"):
+                print(f"  {c}")
+        print()
+        frac_cols, suffix = _fraction_columns(header)
+        print(f"target fractions:    {suffix} -> {list(frac_cols.values())}")
+        raw_cols, raw_suffix = _fraction_columns(header, ("fraction", "weighted_fraction",
+                                                         "debiased"))
+        print(f"vote-model fractions: {raw_suffix} -> {list(raw_cols.values())}")
+        count_cols, how = _vote_count_columns(header)
+        print(f"vote count:          {how} -> {count_cols}")
+        return
 
     ensure_dir(config.ARRAYS)
 
