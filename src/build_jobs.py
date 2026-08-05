@@ -14,7 +14,8 @@ The groups
 main         every architecture under one fixed protocol, with hard and with soft
              labels, five seeds. This is the table the paper leads with and the
              sample the Friedman test runs on.
-labels       the four label modes on three representative architectures.
+labels       the six label modes on three representative architectures,
+             including the two built from debiased rather than raw fractions.
 augment      the four augmentation policies. Together with `orientation` this is
              the measurement of how much of the accuracy comes from telling the
              network that orientation does not matter.

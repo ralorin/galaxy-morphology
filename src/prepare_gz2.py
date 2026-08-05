@@ -171,6 +171,15 @@ def build_table() -> pd.DataFrame:
     debiased_mass = np.clip(d_smooth[keep] + d_feat[keep], 1e-6, None)
     p_debiased = np.clip(d_feat[keep] / debiased_mass, 0.0, 1.0)
 
+    # The panel size the binomial needs is the number of people who gave one of the
+    # two galaxy answers, not everyone who looked at the object: we renormalised the
+    # target over two of the three answers, so the third answer's voters are not part
+    # of the two-way question. The artefact fraction is small for the objects we
+    # keep, so this is a modest correction, but it is the difference between a
+    # panel size that matches the proportion and one that does not.
+    votes_all = votes[keep]
+    votes_binary = np.maximum(np.round(votes_all * galaxy_mass[keep]), 1).astype(np.int32)
+
     out = pd.DataFrame({
         "asset_id": df["asset_id"].to_numpy(dtype=np.int64),
         "dr7objid": df["dr7objid"].to_numpy(dtype=np.int64),
@@ -181,7 +190,8 @@ def build_table() -> pd.DataFrame:
         "p_featured": p,
         # kept only for the sensitivity check on the vote model
         "p_featured_debiased": p_debiased,
-        "votes": votes[keep].astype(np.int32),
+        "votes": votes_all.astype(np.int32),
+        "votes_binary": votes_binary,
         # |2p-1|: 0 when the volunteers split evenly, 1 when they were unanimous
         "agreement": np.abs(2.0 * p - 1.0),
         "label": (p > 0.5).astype(np.int8),
@@ -340,7 +350,7 @@ def main() -> None:
         df = build_images(df, args.workers)
         df.to_csv(TABLE, index=False)
 
-    write_json(META, {
+    meta = {
         "n_galaxies": int(len(df)),
         "cache_size": config.CACHE_SIZE,
         "crop": config.GZ2_CROP,
@@ -349,8 +359,18 @@ def main() -> None:
         "split_counts": df["split"].value_counts().to_dict(),
         "featured_fraction": float(df["label"].mean()),
         "median_votes": float(df["votes"].median()),
+        "median_votes_binary": float(df["votes_binary"].median()),
         "mean_agreement": float(df["agreement"].mean()),
-    })
+    }
+    # How far apart the two label definitions are. This is not a diagnostic: the
+    # paper quotes it as evidence that accuracies on this dataset are not
+    # comparable across papers unless the definition is stated.
+    if "p_featured_debiased" in df:
+        label_deb = (df["p_featured_debiased"] > 0.5).astype(int)
+        meta["featured_fraction_debiased"] = float(label_deb.mean())
+        meta["label_disagreement_raw_vs_debiased"] = float((df["label"] != label_deb).mean())
+        meta["majority_baseline"] = float(max(df["label"].mean(), 1 - df["label"].mean()))
+    write_json(META, meta)
     print(f"wrote {META}")
 
 

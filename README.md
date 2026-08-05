@@ -49,6 +49,21 @@ galaxy answers, renormalise them, and keep the resulting fraction $p$ as a
 continuous target. Objects the volunteers mostly called stars or artefacts are
 dropped, as are the few with fewer than 20 votes.
 
+**And it comes from the raw fractions, not the debiased ones.** Hart et al. publish
+both, and the debiased values are the better estimate of intrinsic morphology --
+they correct for the fact that features get harder to see at higher redshift. That
+correction is exactly why we do not train on them: it is a function of redshift,
+which a cutout does not show, so a network asked to predict a debiased fraction is
+being asked for something its input cannot determine. The vote model needs the same
+thing for a different reason: it requires the label to be a threshold on a
+proportion of a counted number of draws, which a debiased value is not. The
+consequence is not cosmetic. On this catalogue the two thresholds disagree on about
+a third of the galaxies and the featured fraction moves from roughly a quarter to
+roughly three fifths, so the two definitions are tasks with very different
+majority baselines. Because the choice matters that much, it is measured rather
+than asserted: `hard_debiased` and `soft_debiased` train on the debiased fractions
+while still being scored against the raw-label test set.
+
 **Agreement is a first-class quantity.** From $p$ we keep $|2p-1|$, which is 0 when
 the volunteers split evenly and 1 when they were unanimous. The splits are
 stratified on it as well as on the class, so the agreement-resolved analysis is
@@ -92,9 +107,9 @@ python -m src.build_jobs --list          # group sizes without writing anything
 sbatch slurm/01_prepare.sh
 
 # 4. the training sweep  (gpu-small, one GPU per task)
-sbatch --array=0-271%2 slurm/02_train_array.sh
+sbatch --array=0-289%2 slurm/02_train_array.sh
 #    or, to hold four GPUs and keep them all busy in one job:
-#    FIRST=0 LAST=271 sbatch slurm/02b_train_multi.sh
+#    FIRST=0 LAST=289 sbatch slurm/02b_train_multi.sh
 
 # 5. cross-survey evaluation and the explanations  (gpu-small)
 sbatch slurm/03_cross_survey.sh
@@ -104,7 +119,7 @@ sbatch slurm/04_xai.sh
 PAPER_DIR=$HOME/paper5 sbatch slurm/05_analysis.sh
 ```
 
-Replace `271` with whatever `build_jobs` reports. The `%2` is the two-GPU-per-user
+Replace `289` with whatever `build_jobs` reports. The `%2` is the two-GPU-per-user
 limit on `gpu-small`; raise it if the limit changes. Every training run checks for
 its own `metrics.json` first and exits immediately if it is there, so a job that
 hits the wall clock can be resubmitted over the same range without redoing work.
@@ -120,7 +135,7 @@ python -m src.train --arch resnet50 --label-mode soft --policy d4 --seed 0 --epo
 Measured per run on one H100, at the full training split and the reference
 protocol: roughly 15 minutes for a pretrained convnet, 35 for ViT-B/16, and eight
 times the forward cost for the orientation-pooled variants. The design as shipped
-expands to 272 distinct runs, so budget 150–200 GPU-hours; on the two GPUs
+expands to 290 distinct runs, so budget 160–210 GPU-hours; on the two GPUs
 `gpu-small` allows that is three to four days of wall clock. `--groups` lets you run
 it in pieces, and `main` (120 runs) alone is enough for the headline table and the
 Friedman test.

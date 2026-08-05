@@ -20,12 +20,17 @@ hard       target = 1[p > 0.5]; the usual setting, and what the literature does
 hard_conf  same target, but the training set is restricted to galaxies the
            volunteers agreed on (agreement >= 0.6). Tests whether the ceiling is
            caused by noisy labels or by ambiguous images
-soft       target = p, the debiased vote fraction itself
+soft       target = p, the raw vote fraction itself
 soft_w     target = p, with each galaxy weighted by how many people looked at it
+hard_debiased, soft_debiased
+           the same two targets built from the redshift-debiased fractions of
+           Hart et al. rather than the raw ones. They are the control for the
+           choice of fraction, which matters here: on this catalogue the two
+           thresholds disagree on about a third of the galaxies
 
-The validation and test sets are never filtered or reweighted: all four modes are
-scored against the same held-out galaxies with the same thresholded labels, so the
-numbers are comparable.
+The validation and test sets are never filtered, reweighted or relabelled: every
+mode is scored against the same held-out galaxies with the same raw-fraction
+labels, so the numbers are comparable.
 """
 
 from __future__ import annotations
@@ -78,17 +83,33 @@ def compute_loss(logits: torch.Tensor, target: torch.Tensor, weight: torch.Tenso
 # --------------------------------------------------------------------------- #
 
 def build_targets(table: pd.DataFrame, label_mode: str) -> tuple[pd.DataFrame, np.ndarray]:
-    """Apply the label mode to a training table. Returns (table, weights)."""
+    """Apply the label mode to a training table. Returns (table, weights).
+
+    Only the training targets change here. The validation and test tables keep the
+    raw-fraction label throughout, including for the two `*_debiased` modes, so
+    that every mode is scored against the same held-out answers and the columns of
+    the results table mean the same thing.
+    """
     table = table.copy()
+
+    if label_mode.endswith("_debiased"):
+        if "p_featured_debiased" not in table:
+            raise SystemExit("the table has no p_featured_debiased column; rerun "
+                             "src.prepare_gz2 --stage table")
+        table["p_featured"] = table["p_featured_debiased"].astype(np.float32)
+        table["label"] = (table["p_featured"] > 0.5).astype(np.int8)
+        print(f"  training on the debiased fractions "
+              f"({100 * table['label'].mean():.1f}% featured in train)")
+
     if label_mode == "hard_conf":
         before = len(table)
         table = table[table["agreement"] >= CONFIDENT_AGREEMENT].reset_index(drop=True)
         print(f"  hard_conf keeps {len(table):,} of {before:,} training galaxies")
 
-    if label_mode in ("hard", "hard_conf"):
+    if label_mode in ("hard", "hard_conf", "hard_debiased"):
         table["p_featured"] = table["label"].astype(np.float32)
         weights = np.ones(len(table), dtype=np.float32)
-    elif label_mode == "soft":
+    elif label_mode in ("soft", "soft_debiased"):
         weights = np.ones(len(table), dtype=np.float32)
     elif label_mode == "soft_w":
         # more votes means a better measured fraction; cap the ratio so that a

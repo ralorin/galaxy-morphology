@@ -33,7 +33,9 @@ from src.registry import (ARCHITECTURES, PRETTY_ARCH, PRETTY_FAMILY, REGISTRY,
 
 PRETTY_POLICY = {"none": "none", "flip": "flips", "d4": r"$D_4$", "d4_photo": r"$D_4$ + photometric"}
 PRETTY_LABEL = {"hard": "hard", "hard_conf": "hard, confident only",
-                "soft": "soft (vote fraction)", "soft_w": "soft, vote-weighted"}
+                "soft": "soft (vote fraction)", "soft_w": "soft, vote-weighted",
+                "hard_debiased": "hard, debiased fraction",
+                "soft_debiased": "soft, debiased fraction"}
 
 
 def _load():
@@ -142,7 +144,8 @@ def table_labels(runs: pd.DataFrame, tracking: pd.DataFrame | None) -> str:
         rows_arch = sub[sub["arch"] == arch]
         if rows_arch.empty:
             continue
-        for i, mode in enumerate(("hard", "hard_conf", "soft", "soft_w")):
+        for i, mode in enumerate(("hard", "hard_conf", "soft", "soft_w",
+                                  "hard_debiased", "soft_debiased")):
             rows = rows_arch[rows_arch["label_mode"] == mode]
             if rows.empty:
                 continue
@@ -364,6 +367,16 @@ def macros(runs: pd.DataFrame) -> str:
                 cmd(f"n{key.capitalize()}", f"{splits[key]:,}".replace(",", "{,}"))
         cmd("featuredFraction", f"{100 * meta['featured_fraction']:.1f}")
         cmd("medianVotes", f"{meta['median_votes']:.0f}")
+        if "median_votes_binary" in meta:
+            cmd("medianVotesBinary", f"{meta['median_votes_binary']:.0f}")
+        if "majority_baseline" in meta:
+            cmd("majorityBaseline", f"{100 * meta['majority_baseline']:.1f}")
+        if "featured_fraction_debiased" in meta:
+            cmd("featuredFractionDebiased",
+                f"{100 * meta['featured_fraction_debiased']:.1f}")
+        if "label_disagreement_raw_vs_debiased" in meta:
+            cmd("labelDisagreement",
+                f"{100 * meta['label_disagreement_raw_vs_debiased']:.1f}")
         cmd("minVotes", str(meta.get("min_votes", config.MIN_VOTES)))
         cmd("cacheSize", str(meta.get("cache_size", config.CACHE_SIZE)))
 
@@ -541,7 +554,8 @@ def macros(runs: pd.DataFrame) -> str:
 # --------------------------------------------------------------------------- #
 
 MACRO_NAMES = (
-    "nGalaxies nTrain nVal nTest featuredFraction medianVotes minVotes cacheSize "
+    "nGalaxies nTrain nVal nTest featuredFraction featuredFractionDebiased "
+    "labelDisagreement majorityBaseline medianVotes medianVotesBinary minVotes cacheSize "
     "voteCeiling panelAgreement labelNoiseRate voteCeilingDebiased "
     "bestHardArch bestHardAccuracy bestHardAccuracySd bestHardAuc bestHardEce "
     "bestSoftArch bestSoftAccuracy bestSoftAccuracySd bestSoftAuc bestSoftEce "

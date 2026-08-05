@@ -11,7 +11,11 @@ from __future__ import annotations
 
 from src.registry import REGISTRY
 
-LABEL_MODES = ("hard", "hard_conf", "soft", "soft_w")
+LABEL_MODES = ("hard", "hard_conf", "soft", "soft_w",
+               # the same two targets built from the redshift-debiased fractions
+               # instead of the raw ones, so that the choice is measured rather
+               # than assumed
+               "hard_debiased", "soft_debiased")
 LOSSES = ("bce", "focal", "smooth")
 POLICIES = ("none", "flip", "d4", "d4_photo")
 

@@ -130,10 +130,16 @@ def panel_probability(p: np.ndarray, n: np.ndarray) -> np.ndarray:
 
 
 def vote_ceiling(table: pd.DataFrame, column: str = "p_featured") -> dict:
-    """Ceilings implied by the volunteer votes on the test split."""
+    """Ceilings implied by the volunteer votes on the test split.
+
+    The panel size is `votes_binary`, the number of volunteers who gave one of the
+    two galaxy answers, because that is the panel the renormalised proportion was
+    computed over.
+    """
     test = table[table["split"] == "test"] if "split" in table else table
     p = test[column].to_numpy(dtype=np.float64)
-    n = test["votes"].to_numpy(dtype=np.float64)
+    count_col = "votes_binary" if "votes_binary" in test else "votes"
+    n = test[count_col].to_numpy(dtype=np.float64)
     pi = panel_probability(p, n)
 
     bayes = float(np.mean(np.maximum(pi, 1.0 - pi)))
@@ -143,6 +149,7 @@ def vote_ceiling(table: pd.DataFrame, column: str = "p_featured") -> dict:
 
     return {
         "column": column,
+        "panel_size_column": count_col,
         "n_test": int(test.shape[0]),
         "median_votes": float(np.median(n)),
         # best possible accuracy against a freshly drawn panel label
