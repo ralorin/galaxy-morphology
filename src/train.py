@@ -293,7 +293,10 @@ def train_one(cfg: dict, workers: int = 8, force: bool = False) -> dict:
     t0 = time.perf_counter()
     test_pred = predict(model, dl_test, device, amp_dtype, tta=cfg["tta"])
     predict_seconds = time.perf_counter() - t0
-    val_pred = predict(model, dl_val, device, amp_dtype, tta=cfg["tta"])
+    # No test-time augmentation on the validation pass: nothing reads it, and over
+    # 290 runs those seven extra forward passes per validation galaxy add up to
+    # about a day of GPU time for nothing.
+    val_pred = predict(model, dl_val, device, amp_dtype, tta=False)
 
     test_pred.to_csv(out_dir / "predictions_test.csv", index=False)
     val_pred.to_csv(out_dir / "predictions_val.csv", index=False)

@@ -93,9 +93,25 @@ def group_augment() -> list[dict]:
 
 
 def group_orientation() -> list[dict]:
-    return [_job(arch=a, policy=p, label_mode="soft", seed=s,
+    """Invariance built into the network, against invariance learnt from data.
+
+    These are the most expensive runs in the design: pooling over the eight group
+    elements costs eight forward and backward passes per step. We therefore keep
+    the group as small as the question allows.
+
+    In particular there is no `d4` augmentation variant here. Augmenting over a
+    group the network is already exactly invariant to cannot add information; it
+    can only change the order in which samples arrive. The claim is checkable for
+    free rather than by spending GPU time on it, because every run reports
+    `d4_invariance_error`, which is zero by construction for these models.
+
+    The cheap form of the same idea -- one ordinary network, eight views averaged
+    at inference -- is not in this group either, because it is computed for every
+    run in the study as the TTA column.
+    """
+    return [_job(arch=a, policy="none", label_mode="soft", seed=s,
                  orientation_pooled=True, save_checkpoint=(s == 0))
-            for a, p, s in itertools.product(PROBES, ("none", "d4"), (0, 1, 2))]
+            for a, s in itertools.product(PROBES, (0, 1, 2))]
 
 
 def group_resolution() -> list[dict]:

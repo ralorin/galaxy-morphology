@@ -107,9 +107,9 @@ python -m src.build_jobs --list          # group sizes without writing anything
 sbatch slurm/01_prepare.sh
 
 # 4. the training sweep  (gpu-small, one GPU per task)
-sbatch --array=0-289%2 slurm/02_train_array.sh
+sbatch --array=0-280%2 slurm/02_train_array.sh
 #    or, to hold four GPUs and keep them all busy in one job:
-#    FIRST=0 LAST=289 sbatch slurm/02b_train_multi.sh
+#    FIRST=0 LAST=280 sbatch slurm/02b_train_multi.sh
 
 # 5. cross-survey evaluation and the explanations  (gpu-small)
 sbatch slurm/03_cross_survey.sh
@@ -119,7 +119,7 @@ sbatch slurm/04_xai.sh
 PAPER_DIR=$HOME/paper5 sbatch slurm/05_analysis.sh
 ```
 
-Replace `289` with whatever `build_jobs` reports. The `%2` is the two-GPU-per-user
+Replace `280` with whatever `build_jobs` reports. The `%2` is the two-GPU-per-user
 limit on `gpu-small`; raise it if the limit changes. Every training run checks for
 its own `metrics.json` first and exits immediately if it is there, so a job that
 hits the wall clock can be resubmitted over the same range without redoing work.
@@ -132,13 +132,28 @@ python -m src.train --arch resnet50 --label-mode soft --policy d4 --seed 0 --epo
 
 ## Cost
 
-Measured per run on one H100, at the full training split and the reference
-protocol: roughly 15 minutes for a pretrained convnet, 35 for ViT-B/16, and eight
-times the forward cost for the orientation-pooled variants. The design as shipped
-expands to 290 distinct runs, so budget 160–210 GPU-hours; on the two GPUs
-`gpu-small` allows that is three to four days of wall clock. `--groups` lets you run
-it in pieces, and `main` (120 runs) alone is enough for the headline table and the
-Friedman test.
+Measured on one H100 at roughly 3,000 inference-equivalent images per second, over
+the full training split and with early stopping typically landing around twelve
+epochs:
+
+| | per run | runs | GPU-h |
+|---|---|---|---|
+| ResNet-50, ViT-S/16, DeiT3-S, Swin-T | ~40 min | | |
+| ConvNeXt-T, DenseNet-121, EfficientNetV2-S | ~45 min | | |
+| ViT-B/16 | ~2.6 h | 10 | 26 |
+| scratch CNNs at 128 px | ~10 min | | |
+| orientation-pooled (eight passes per step) | ~5.3 h | 9 | 48 |
+
+The design as shipped is 281 runs and about 200 GPU-hours: four days of wall clock
+on the two GPUs `gpu-small` allows, or two days on four GPUs through
+`02b_train_multi.sh`. The second is the better use of the machine here, and it is a
+coherent request for `gpu-large` because all four cards stay busy for the whole
+allocation.
+
+`--groups` lets you run it in pieces. `main` (102 runs, 67 GPU-h) alone is enough
+for the headline table, the agreement-resolved figure and the Friedman test; the
+orientation group is the one to postpone if queue time is short, since it is a
+quarter of the budget for a single ablation.
 
 ## Layout
 
