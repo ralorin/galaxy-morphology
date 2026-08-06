@@ -24,6 +24,9 @@ set -e
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate "${ENV_NAME:-galaxy}"
 export PYTHONUNBUFFERED=1
+# the nodes are shared; this keeps fragmentation from turning a tight
+# fit into an out-of-memory error
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cd "$SLURM_SUBMIT_DIR"
 
 export GZM_WORKERS=${SLURM_CPUS_PER_TASK:-8}

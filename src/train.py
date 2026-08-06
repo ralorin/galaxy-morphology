@@ -191,8 +191,37 @@ def predict(model, loader, device, amp_dtype, tta: bool = False) -> pd.DataFrame
 # Train
 # --------------------------------------------------------------------------- #
 
-def train_one(cfg: dict, workers: int = 8, force: bool = False) -> dict:
-    cfg = resolve(cfg)
+def train_one(cfg: dict, workers: int = 8, force: bool = False,
+              attempts: int = 4) -> dict:
+    """Train one configuration, halving the batch and retrying on a memory error.
+
+    The compute nodes are shared, so how much of a card is free when a job starts
+    is not something we control: a run that fits comfortably on an idle GPU can be
+    refused 14 MiB on a busy one. Over a sweep of a few hundred unattended runs
+    that will happen, and a run that dies for want of memory is worse than a run
+    that finishes at half the batch size. The batch size is recorded in the run's
+    metrics either way, so a reduced run is visible rather than silent.
+    """
+    resolved = resolve(cfg)
+    for attempt in range(attempts):
+        try:
+            return _train_once(resolved, workers, force)
+        except torch.OutOfMemoryError:
+            if attempt == attempts - 1:
+                raise
+            torch.cuda.empty_cache()
+            resolved = dict(resolved)
+            resolved["batch_size"] = max(4, resolved["batch_size"] // 2)
+            print(f"  out of GPU memory; retrying at batch size "
+                  f"{resolved['batch_size']}", flush=True)
+            if torch.cuda.is_available():
+                free, total = torch.cuda.mem_get_info()
+                print(f"  ({free / 1e9:.1f} of {total / 1e9:.1f} GB free on this card; "
+                      f"another job may be holding the rest)", flush=True)
+    raise RuntimeError("unreachable")
+
+
+def _train_once(cfg: dict, workers: int = 8, force: bool = False) -> dict:
     rid = run_id(cfg)
     out_dir = ensure_dir(config.RUNS / rid)
     metrics_path = out_dir / "metrics.json"
@@ -203,6 +232,10 @@ def train_one(cfg: dict, workers: int = 8, force: bool = False) -> dict:
 
     print(f"\n=== {rid} ===")
     print(f"  device: {describe_device()}")
+    if torch.cuda.is_available():
+        free, total = torch.cuda.mem_get_info()
+        print(f"  memory: {free / 1e9:.1f} of {total / 1e9:.1f} GB free, "
+              f"batch size {cfg['batch_size']}")
     set_seed(cfg["seed"])
     device = get_device()
     amp_dtype = torch.bfloat16 if device.type == "cuda" else torch.float32

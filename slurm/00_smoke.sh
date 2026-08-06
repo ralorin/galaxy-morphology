@@ -22,49 +22,81 @@
 # otherwise be averaged into it:
 #
 #   rm -rf $GZM_WORK/runs/*seed99* $GZM_WORK/results/xai/*seed99*
-set -e
+#
+# Deliberately no `set -e`: the point of a smoke test is to learn about every stage
+# in one submission, not to stop at the first one that breaks. Failures are counted
+# and listed at the end.
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate "${ENV_NAME:-galaxy}"
 export PYTHONUNBUFFERED=1
+# the nodes are shared; this keeps fragmentation from turning a tight
+# fit into an out-of-memory error
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cd "$SLURM_SUBMIT_DIR"
 export GZM_WORKERS=${SLURM_CPUS_PER_TASK:-8}
 
 N=5000
 SEED=99
-COMMON="--train-size $N --seed $SEED --policy d4"
+FAILED=""
+
+stage () {
+    local label="$1"
+    shift
+    echo
+    echo "=== $label ==="
+    if "$@"; then
+        echo "--- ok: $label"
+    else
+        echo "--- FAILED: $label"
+        FAILED="$FAILED
+  $label"
+    fi
+}
+
+train () {
+    python -m src.train --train-size "$N" --seed "$SEED" "$@"
+}
 
 echo "GPU asignada: $CUDA_VISIBLE_DEVICES"
 echo "node: $(hostname)   start: $(date)"
+nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader || true
 
-echo; echo "=== pretrained convnet: the whole loop, and it keeps its weights ==="
-python -m src.train --arch resnet50 --label-mode soft $COMMON --epochs 2 --save-checkpoint
+stage "pretrained convnet: the whole loop, and it keeps its weights" \
+    train --arch resnet50 --label-mode soft --policy d4 --epochs 2 --save-checkpoint
 
-echo; echo "=== transformer: the timm attention path, weights kept for rollout ==="
-python -m src.train --arch vit_small --label-mode soft $COMMON --epochs 1 --save-checkpoint
+stage "transformer: the timm attention path, weights kept for rollout" \
+    train --arch vit_small --label-mode soft --policy d4 --epochs 1 --save-checkpoint
 
-echo; echo "=== swin: fixed input size and NHWC feature maps ==="
-python -m src.train --arch swin_tiny --label-mode soft $COMMON --epochs 1
+stage "swin: fixed input size and NHWC feature maps" \
+    train --arch swin_tiny --label-mode soft --policy d4 --epochs 1
 
-echo; echo "=== scratch net at 128 px, hard labels ==="
-python -m src.train --arch cnn_small --label-mode hard $COMMON --epochs 2
+stage "scratch net at 128 px, hard labels" \
+    train --arch cnn_small --label-mode hard --policy d4 --epochs 2
 
-echo; echo "=== orientation pooling: eight passes per step, reduced batch ==="
-python -m src.train --arch resnet50 --label-mode soft --train-size $N --seed $SEED \
-    --policy none --epochs 1 --orientation-pooled
+stage "orientation pooling: eight passes per step, reduced batch" \
+    train --arch resnet50 --label-mode soft --policy none --epochs 1 --orientation-pooled
 
-echo; echo "=== the debiased target branch ==="
-python -m src.train --arch resnet50 --label-mode soft_debiased $COMMON --epochs 1
+stage "the debiased target branch" \
+    train --arch resnet50 --label-mode soft_debiased --policy d4 --epochs 1
 
-RUN_CNN=resnet50_soft_d4_s224_full_bce_n${N}_seed${SEED}
-RUN_VIT=vit_small_soft_d4_s224_full_bce_n${N}_seed${SEED}
+RUN_CNN="resnet50_soft_d4_s224_full_bce_n${N}_seed${SEED}"
+RUN_VIT="vit_small_soft_d4_s224_full_bce_n${N}_seed${SEED}"
 
-echo; echo "=== cross-survey scoring on Galaxy10 DECaLS ==="
-python -m src.train --decals "$RUN_CNN"
+stage "cross-survey scoring on Galaxy10 DECaLS" \
+    python -m src.train --decals "$RUN_CNN"
 
-echo; echo "=== Grad-CAM, and attention rollout on the transformer ==="
-python -m src.xai --runs "$RUN_CNN" --n 6
-python -m src.xai --runs "$RUN_VIT" --n 6
+stage "Grad-CAM on the convnet" \
+    python -m src.xai --runs "$RUN_CNN" --n 6
 
-echo; echo "end: $(date)"
-echo "if every stage above printed metrics, the sweep is safe to launch"
+stage "attention rollout on the transformer" \
+    python -m src.xai --runs "$RUN_VIT" --n 6
+
+echo
+echo "end: $(date)"
+if [ -z "$FAILED" ]; then
+    echo "every stage passed; the sweep is safe to launch"
+else
+    echo "these stages failed:$FAILED"
+    exit 1
+fi

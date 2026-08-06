@@ -81,8 +81,12 @@ def resolve(cfg: dict) -> dict:
         merged["weight_decay"] = 0.05 if merged["arch"] == "cnn_deep_reg" else 0.01
 
     if merged["orientation_pooled"]:
-        # eight forward passes per step; shrink the batch to stay inside 80 GB
-        merged["batch_size"] = max(16, merged["batch_size"] // 4)
+        # Eight views go through the backbone per step and all eight keep their
+        # activations for the backward pass, so divide by eight rather than by a
+        # comfortable-looking factor: that way the number of images in flight
+        # matches an ordinary run and the memory footprint is comparable. On a
+        # shared node the difference is between fitting and not fitting.
+        merged["batch_size"] = max(8, merged["batch_size"] // 8)
     if merged["size"] > 224:
         merged["batch_size"] = max(16, merged["batch_size"] // 2)
     return merged
