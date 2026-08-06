@@ -94,6 +94,7 @@ def collect_runs() -> pd.DataFrame:
             if isinstance(block, dict):
                 for k in METRIC_KEYS:
                     row[f"{split}_{k}"] = block.get(k)
+        row.update(tuned_metrics(row["run_id"]))
         rows.append(row)
 
     if not rows:
@@ -112,6 +113,65 @@ def _predictions(run_id: str, which: str = "test") -> pd.DataFrame | None:
     if not path.exists():
         return None
     return pd.read_csv(path)
+
+
+# --------------------------------------------------------------------------- #
+# Operating point
+# --------------------------------------------------------------------------- #
+
+def choose_threshold(y: np.ndarray, prob: np.ndarray) -> float:
+    """The threshold on the validation set that maximises balanced accuracy.
+
+    A fixed threshold of 0.5 is only meaningful when the class prior of the
+    training target matches that of the evaluation set. Two situations in this
+    study break that, and both would otherwise be misread as a failure of the
+    model rather than of the threshold:
+
+      * the `*_debiased` targets are trained against fractions whose mean is far
+        from the mean of the raw labels they are scored against;
+      * Galaxy10 DECaLS has a substantially higher featured fraction than
+        Galaxy Zoo 2, so a model transferred between the two surveys meets a
+        different prior.
+
+    We therefore report every threshold metric twice: at 0.5, which is what the
+    literature reports, and at this operating point. The threshold is chosen on
+    validation data only -- for the cross-survey evaluation, on the *source*
+    survey's validation split -- so nothing about the test set or the target
+    survey leaks into it, and the zero-shot protocol stays zero-shot.
+    """
+    from sklearn.metrics import balanced_accuracy_score
+
+    y = np.asarray(y).astype(int)
+    prob = np.asarray(prob, dtype=np.float64)
+    if len(np.unique(y)) < 2:
+        return 0.5
+    # the useful candidates are the midpoints between adjacent distinct scores;
+    # a few hundred quantiles capture the optimum without scanning every one
+    candidates = np.unique(np.quantile(prob, np.linspace(0.001, 0.999, 400)))
+    best, best_score = 0.5, -1.0
+    for t in candidates:
+        score = balanced_accuracy_score(y, (prob >= t).astype(int))
+        if score > best_score:
+            best, best_score = float(t), score
+    return best
+
+
+def tuned_metrics(run_id: str) -> dict:
+    """Test and cross-survey metrics at the validation-chosen operating point."""
+    val = _predictions(run_id, "val")
+    test = _predictions(run_id, "test")
+    if val is None or test is None:
+        return {}
+    threshold = choose_threshold(val["label"], val["prob"])
+    out = {"val_threshold": threshold}
+    for key, frame in (("test", test), ("decals", _predictions(run_id, "decals"))):
+        if frame is None:
+            continue
+        m = classification_metrics(frame["label"], frame["prob"], threshold=threshold)
+        for name in ("accuracy", "balanced_accuracy", "f1", "mcc", "recall",
+                     "precision"):
+            out[f"{key}_{name}_tuned"] = m[name]
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -301,9 +361,19 @@ def cross_survey(runs: pd.DataFrame) -> pd.DataFrame:
         return have
     have["accuracy_drop"] = have["test_accuracy"] - have["decals_accuracy"]
     have["auc_drop"] = have["test_auc_roc"] - have["decals_auc_roc"]
-    cols = ["run_id", *CONFIG_KEYS, "test_accuracy", "decals_accuracy", "accuracy_drop",
+    # The prior differs by tens of points between the two surveys, so the drop at a
+    # fixed 0.5 threshold conflates a shift in prior with a loss of discrimination.
+    # These two separate them: the AUC drop is threshold-free, and the tuned drop
+    # uses the operating point chosen on the source survey's validation split.
+    if "decals_balanced_accuracy_tuned" in have and "test_balanced_accuracy_tuned" in have:
+        have["balanced_accuracy_drop_tuned"] = (have["test_balanced_accuracy_tuned"]
+                                                - have["decals_balanced_accuracy_tuned"])
+    cols = ["run_id", *CONFIG_KEYS, "val_threshold",
+            "test_accuracy", "decals_accuracy", "accuracy_drop",
             "test_auc_roc", "decals_auc_roc", "auc_drop",
-            "decals_tta_accuracy", "decals_balanced_accuracy"]
+            "test_balanced_accuracy", "decals_balanced_accuracy",
+            "test_balanced_accuracy_tuned", "decals_balanced_accuracy_tuned",
+            "balanced_accuracy_drop_tuned", "decals_tta_accuracy"]
     return have[[c for c in cols if c in have]]
 
 

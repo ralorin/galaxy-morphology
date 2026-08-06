@@ -284,25 +284,36 @@ def table_cross_survey(runs: pd.DataFrame) -> str:
                          & (~cross["orientation_pooled"])]
             if rows.empty:
                 continue
+            def col(name: str, fmt: str = "{:.3f}") -> str:
+                if name not in rows or rows[name].isna().all():
+                    return "--"
+                return fmt.format(rows[name].mean())
+
             lines.append(" & ".join([
                 PRETTY_ARCH.get(arch, arch) if mode == "hard" else "",
                 mode,
-                f"{rows['test_accuracy'].mean():.3f}",
-                f"{rows['decals_accuracy'].mean():.3f}",
-                f"{rows['decals_balanced_accuracy'].mean():.3f}"
-                if "decals_balanced_accuracy" in rows else "--",
-                f"{rows['accuracy_drop'].mean():+.3f}",
-                f"{rows['decals_auc_roc'].mean():.3f}",
+                col("test_balanced_accuracy"),
+                col("decals_balanced_accuracy"),
+                col("decals_balanced_accuracy_tuned"),
+                col("balanced_accuracy_drop_tuned", "{:+.3f}"),
+                col("decals_auc_roc"),
             ]) + r" \\")
 
-    header = (r"\textbf{Model} & \textbf{Labels} & \textbf{GZ2 acc.} & "
-              r"\textbf{DECaLS acc.} & \textbf{DECaLS bal.\ acc.} & "
-              r"$\boldsymbol{\Delta}$ & \textbf{DECaLS AUC} \\")
+    header = (r"\textbf{Model} & \textbf{Labels} & \textbf{GZ2 bal.} & "
+              r"\textbf{DECaLS bal.} & \textbf{DECaLS bal.}$^{\dagger}$ & "
+              r"$\boldsymbol{\Delta^{\dagger}}$ & \textbf{DECaLS AUC} \\")
     caption = ("Zero-shot transfer from SDSS to the DESI Legacy Imaging Surveys. "
                "Models are trained only on Galaxy Zoo~2 cutouts and evaluated, without "
-               "any adaptation or recalibration, on the Galaxy10 DECaLS images whose "
-               "labels answer the same Galaxy Zoo question. $\\Delta$ is the accuracy "
-               "lost in the transfer.")
+               "any adaptation, on the Galaxy10 DECaLS images whose labels answer the "
+               "same Galaxy Zoo question. We report balanced accuracy rather than "
+               "accuracy because the featured fraction differs substantially between the "
+               "two surveys, so a raw accuracy would confound a shift in class prior with "
+               "a loss of discrimination. Columns marked $\\dagger$ are evaluated at the "
+               "operating point chosen on the \\emph{source} survey's validation split "
+               "instead of at 0.5; nothing from the target survey informs it, so the "
+               "evaluation remains zero-shot. $\\Delta^{\\dagger}$ is the balanced "
+               "accuracy lost in the transfer at that operating point, and the final "
+               "column is threshold-free.")
     return _wrap("\n".join(lines), caption, "tab:cross", "llccccc", header)
 
 
@@ -405,6 +416,17 @@ def macros(runs: pd.DataFrame) -> str:
         cmd(f"best{tag}Auc", f"{best['test_auc_roc'].mean():.3f}")
         cmd(f"best{tag}Ece", f"{best['test_ece'].mean():.3f}")
 
+    # the operating point the validation split picks, and what soft labels buy once
+    # the threshold is no longer pinned to 0.5
+    if "val_threshold" in ref and not ref["val_threshold"].isna().all():
+        cmd("tunedThresholdMedian", f"{ref['val_threshold'].median():.2f}")
+    if "test_balanced_accuracy_tuned" in ref:
+        tuned = ref.pivot_table(index="arch", columns="label_mode",
+                                values="test_balanced_accuracy_tuned")
+        if "soft" in tuned and "hard" in tuned:
+            cmd("softAccGainTuned",
+                f"{100 * (tuned['soft'] - tuned['hard']).mean():+.2f}")
+
     # what soft labels buy, averaged over architectures
     pair = ref.pivot_table(index="arch", columns="label_mode",
                            values=["test_accuracy", "test_ece", "test_auc_roc"])
@@ -500,6 +522,14 @@ def macros(runs: pd.DataFrame) -> str:
     cpath = config.RESULTS / "cross_survey.csv"
     if cpath.exists():
         cross = pd.read_csv(cpath)
+        if not cross.empty and "balanced_accuracy_drop_tuned" in cross:
+            cmd("decalsDropTuned",
+                f"{100 * cross['balanced_accuracy_drop_tuned'].mean():.1f}")
+            best = cross.loc[cross["decals_balanced_accuracy_tuned"].idxmax()]
+            cmd("decalsBestBalanced",
+                f"{100 * best['decals_balanced_accuracy_tuned']:.1f}")
+            cmd("decalsAucDrop", f"{100 * cross['auc_drop'].mean():.1f}")
+            cmd("decalsThresholdMedian", f"{cross['val_threshold'].median():.2f}")
         if not cross.empty:
             cmd("decalsDropMean", f"{100 * cross['accuracy_drop'].mean():.1f}")
             best = cross.loc[cross["decals_accuracy"].idxmax()]
@@ -569,6 +599,8 @@ MACRO_NAMES = (
     "dihedralGain invarianceErrorPlain pooledGain "
     "pretrainGain pretrainGainMax frozenPenalty "
     "decalsDropMean decalsBestArch decalsBestAccuracy decalsDropSoft decalsDropHard "
+    "decalsDropTuned decalsBestBalanced decalsAucDrop decalsThresholdMedian "
+    "tunedThresholdMedian softAccGainTuned "
     "bkgRelianceMean bkgRelianceLow bkgRelianceHigh bkgRelianceCNN bkgRelianceViT "
     "friedmanP friedmanArchitectures friedmanSeeds nemenyiCD "
     "softVsHardEceP softVsHardPairs nRuns nArchitectures"
