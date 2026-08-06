@@ -290,8 +290,14 @@ def train_one(cfg: dict, workers: int = 8, force: bool = False) -> dict:
         model.load_state_dict(best["state"])
 
     # ---- evaluation ---- #
+    # Test-time augmentation over D4 is meaningless for a model that already
+    # averages over D4 internally: the eight views produce the same logit by
+    # construction, at eight times the cost. Skipping it turns 64 forward passes
+    # per test image into 8.
+    use_tta = cfg["tta"] and not cfg["orientation_pooled"]
+
     t0 = time.perf_counter()
-    test_pred = predict(model, dl_test, device, amp_dtype, tta=cfg["tta"])
+    test_pred = predict(model, dl_test, device, amp_dtype, tta=use_tta)
     predict_seconds = time.perf_counter() - t0
     # No test-time augmentation on the validation pass: nothing reads it, and over
     # 290 runs those seven extra forward passes per validation galaxy add up to
@@ -315,7 +321,7 @@ def train_one(cfg: dict, workers: int = 8, force: bool = False) -> dict:
         "test": classification_metrics(test_pred["label"], test_pred["prob"]),
         "val": classification_metrics(val_pred["label"], val_pred["prob"]),
     }
-    if cfg["tta"]:
+    if use_tta:
         metrics["test_tta"] = classification_metrics(test_pred["label"], test_pred["prob_tta"])
 
     # how far from D4-invariant the trained network ended up
@@ -362,12 +368,12 @@ def evaluate_decals(rid: str, workers: int = 8) -> dict:
                        norm, train=False)
     dl = make_loader(ds, 256, False, workers)
 
-    pred = predict(model, dl, device, amp_dtype, tta=True)
+    use_tta = not cfg["orientation_pooled"]   # see the note in train_one
+    pred = predict(model, dl, device, amp_dtype, tta=use_tta)
     pred.to_csv(out_dir / "predictions_decals.csv", index=False)
-    out = {
-        "decals": classification_metrics(pred["label"], pred["prob"]),
-        "decals_tta": classification_metrics(pred["label"], pred["prob_tta"]),
-    }
+    out = {"decals": classification_metrics(pred["label"], pred["prob"])}
+    if use_tta:
+        out["decals_tta"] = classification_metrics(pred["label"], pred["prob_tta"])
     metrics = read_json(out_dir / "metrics.json")
     metrics.update(out)
     write_json(out_dir / "metrics.json", metrics)
