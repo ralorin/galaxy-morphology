@@ -391,7 +391,9 @@ def evaluate_decals(rid: str, workers: int = 8) -> dict:
     model, norm, _ = models.build(cfg["arch"], input_size=cfg["size"], pretrained=False,
                                   finetune="full",
                                   orientation_pooled=cfg["orientation_pooled"])
-    model.load_state_dict(torch.load(ckpt_path, map_location="cpu")["state_dict"])
+    # we wrote this checkpoint ourselves, so the pickle is ours to trust
+    model.load_state_dict(
+        torch.load(ckpt_path, map_location="cpu", weights_only=False)["state_dict"])
     model = model.to(device)
 
     table = load_decals_table()

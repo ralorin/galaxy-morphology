@@ -331,6 +331,21 @@ def background_reliance(cam: np.ndarray, footprint: np.ndarray) -> float:
 # Driving it
 # --------------------------------------------------------------------------- #
 
+def disable_inplace(model: torch.nn.Module) -> None:
+    """Turn off every in-place activation in the network.
+
+    `register_full_backward_hook` wraps a module's output in a custom autograd
+    function, and an in-place ReLU applied to that wrapped output is a view being
+    modified in place, which autograd refuses. Since most of our backbones use
+    `ReLU(inplace=True)` this would break Grad-CAM on almost all of them. Switching
+    the flag off costs a little activation memory and changes nothing numerically:
+    the forward is the same function either way, and we are not training here.
+    """
+    for module in model.modules():
+        if getattr(module, "inplace", False):
+            module.inplace = False
+
+
 def load_run(run_id: str):
     out_dir = config.RUNS / run_id
     ckpt = out_dir / "checkpoint.pt"
@@ -340,8 +355,10 @@ def load_run(run_id: str):
     model, norm, size = models.build(cfg["arch"], input_size=cfg["size"], pretrained=False,
                                      finetune="full",
                                      orientation_pooled=cfg["orientation_pooled"])
-    state = torch.load(ckpt, map_location="cpu")["state_dict"]
+    # we wrote these checkpoints ourselves, so the pickle is ours to trust
+    state = torch.load(ckpt, map_location="cpu", weights_only=False)["state_dict"]
     model.load_state_dict(state)
+    disable_inplace(model)
     return model.eval(), norm, cfg
 
 

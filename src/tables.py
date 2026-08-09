@@ -420,6 +420,24 @@ def macros(runs: pd.DataFrame) -> str:
     # the threshold is no longer pinned to 0.5
     if "val_threshold" in ref and not ref["val_threshold"].isna().all():
         cmd("tunedThresholdMedian", f"{ref['val_threshold'].median():.2f}")
+
+    # Calibration before and after a one-parameter recalibration fitted on the
+    # validation split. A model trained on the vote fraction estimates a different
+    # quantity from the thresholded label, so its raw calibration error is partly a
+    # difference of scale; what survives temperature scaling is not.
+    if "test_ece_calibrated" in ref:
+        for mode, tag in (("hard", "Hard"), ("soft", "Soft")):
+            rows = ref[ref["label_mode"] == mode]
+            if rows.empty:
+                continue
+            cmd(f"ece{tag}", f"{rows['test_ece'].mean():.3f}")
+            cmd(f"ece{tag}Calibrated", f"{rows['test_ece_calibrated'].mean():.3f}")
+            cmd(f"temperature{tag}", f"{rows['temperature'].mean():.2f}")
+        cal = ref.pivot_table(index="arch", columns="label_mode",
+                              values="test_ece_calibrated")
+        if "soft" in cal and "hard" in cal:
+            cmd("softEceGainCalibrated",
+                f"{1000 * (cal['hard'] - cal['soft']).mean():+.1f}")
     if "test_balanced_accuracy_tuned" in ref:
         tuned = ref.pivot_table(index="arch", columns="label_mode",
                                 values="test_balanced_accuracy_tuned")
@@ -590,6 +608,8 @@ MACRO_NAMES = (
     "bestHardArch bestHardAccuracy bestHardAccuracySd bestHardAuc bestHardEce "
     "bestSoftArch bestSoftAccuracy bestSoftAccuracySd bestSoftAuc bestSoftEce "
     "softEceGain softAccGain softAucGain "
+    "eceHard eceSoft eceHardCalibrated eceSoftCalibrated "
+    "temperatureHard temperatureSoft softEceGainCalibrated "
     "accHighAgreement accLowAgreement shareLowAgreement shareHighAgreement "
     "baselineHighAgreement baselineLowAgreement balAccHighAgreement "
     "balAccLowAgreement liftHighAgreement liftLowAgreement "

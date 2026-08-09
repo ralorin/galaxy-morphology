@@ -156,14 +156,60 @@ def choose_threshold(y: np.ndarray, prob: np.ndarray) -> float:
     return best
 
 
+EPS = 1e-6
+
+
+def _to_logit(prob: np.ndarray) -> np.ndarray:
+    p = np.clip(np.asarray(prob, dtype=np.float64), EPS, 1 - EPS)
+    return np.log(p / (1 - p))
+
+
+def fit_temperature(y: np.ndarray, prob: np.ndarray) -> float:
+    """The temperature that minimises validation NLL (Guo et al. 2017).
+
+    This matters for a reason specific to this study rather than as routine
+    hygiene. A model trained on the vote fraction learns to predict $p$, not
+    $P(y=1 \\mid x)$: for a galaxy where three volunteers in ten said featured it
+    should output about 0.3, even though the thresholded label is 0 with certainty.
+    Scored against the thresholded label, such a model looks badly calibrated when
+    it is in fact well calibrated for a different quantity. Temperature scaling
+    separates the two: it cannot change the ranking, so whatever calibration error
+    survives it is a genuine failure of the model rather than a mismatch of scale.
+    """
+    from scipy.optimize import minimize_scalar
+
+    y = np.asarray(y, dtype=np.float64)
+    logit = _to_logit(prob)
+
+    def nll(log_t: float) -> float:
+        p = 1.0 / (1.0 + np.exp(-logit / np.exp(log_t)))
+        p = np.clip(p, EPS, 1 - EPS)
+        return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
+
+    result = minimize_scalar(nll, bounds=(-4.0, 4.0), method="bounded")
+    return float(np.exp(result.x))
+
+
+def apply_temperature(prob: np.ndarray, temperature: float) -> np.ndarray:
+    return 1.0 / (1.0 + np.exp(-_to_logit(prob) / temperature))
+
+
 def tuned_metrics(run_id: str) -> dict:
-    """Test and cross-survey metrics at the validation-chosen operating point."""
+    """Metrics at the validation-chosen operating point, and after recalibration.
+
+    Both corrections are fitted on validation data only and applied to the test
+    split and to the held-out survey; neither can change the ranking of the
+    predictions, so AUC is untouched by either.
+    """
     val = _predictions(run_id, "val")
     test = _predictions(run_id, "test")
     if val is None or test is None:
         return {}
+
     threshold = choose_threshold(val["label"], val["prob"])
-    out = {"val_threshold": threshold}
+    temperature = fit_temperature(val["label"], val["prob"])
+    out = {"val_threshold": threshold, "temperature": temperature}
+
     for key, frame in (("test", test), ("decals", _predictions(run_id, "decals"))):
         if frame is None:
             continue
@@ -171,6 +217,10 @@ def tuned_metrics(run_id: str) -> dict:
         for name in ("accuracy", "balanced_accuracy", "f1", "mcc", "recall",
                      "precision"):
             out[f"{key}_{name}_tuned"] = m[name]
+        cal = classification_metrics(frame["label"],
+                                     apply_temperature(frame["prob"], temperature))
+        for name in ("ece", "brier", "nll"):
+            out[f"{key}_{name}_calibrated"] = cal[name]
     return out
 
 
