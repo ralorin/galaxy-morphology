@@ -19,17 +19,33 @@ Why the numbers matter. A heatmap that lands on the galaxy looks convincing whet
 or not the network used that region, so we score the maps three ways instead of
 eyeballing them:
 
-*   deletion AUC   blank out the most salient pixels first and watch the predicted
-                   probability fall. A faithful map makes it fall fast, so lower is
-                   better.
+*   deletion AUC   blank out the most salient pixels first and watch the score of
+                   the originally predicted class fall. A faithful map makes it
+                   fall fast, so lower is better.
 *   insertion AUC  start from a blurred image and restore the most salient pixels
-                   first. Higher is better.
-*   background reliance
-                   the share of the attribution mass that falls outside the
-                   galaxy's own footprint, where by construction there is nothing
-                   relevant. This one is specific to this problem and it is the
-                   one that catches a network keying on sky noise or on a
-                   neighbour at the edge of the crop.
+                   first. Higher is better. `faithfulness` is the difference of the
+                   two, as a single number.
+*   background excess
+                   how much more attribution mass falls outside the galaxy's own
+                   footprint than a uniform map would put there. This one is
+                   specific to the problem and it is what catches a network keying
+                   on sky noise or on a neighbour at the edge of the crop.
+
+Two details of those definitions do real work, and both were arrived at after the
+naive versions produced numbers that turned out to measure something else.
+
+The curves track the predicted class rather than the positive class. Three of every
+four galaxies here are smooth, and for those the probability of "featured" rises as
+evidence is destroyed; a curve averaged over both classes would run in opposite
+directions for each and mean nothing.
+
+Background reliance is quoted against a null. The raw share of mass outside the
+galaxy depends on how much of the frame the galaxy fills, and compact smooth
+galaxies leave more empty sky than sprawling spirals do. Since smooth galaxies are
+also the ones volunteers agree on, that confound runs straight through the
+stratification we care about. Subtracting what a uniform map would score,
+1 - footprint_fraction, removes it: zero means uninformative, negative means the
+map concentrates on the galaxy.
 
 The footprint comes from the image itself: threshold at the sky level estimated
 from the border, keep the connected component that contains the centre. That is a
@@ -246,15 +262,29 @@ def make_explainer(arch: str, model: torch.nn.Module, method: str):
 @torch.no_grad()
 def deletion_insertion(model, x: torch.Tensor, cam: torch.Tensor,
                        steps: int = 20) -> tuple[np.ndarray, np.ndarray]:
-    """Curves of the predicted probability as pixels are removed or restored.
+    """Curves of the score of the originally predicted class as pixels are removed
+    or restored.
 
     Deletion replaces the most salient pixels with the per-image mean, which is the
     closest thing to "no information" for an image that is mostly sky. Insertion
     starts from a heavily blurred copy and restores detail in order of salience.
+
+    The score tracked is the probability of the class the model predicted on the
+    intact image, not the probability of the positive class. With a binary head and
+    an unbalanced problem those differ for most images: three out of four galaxies
+    here are smooth, and for those the probability of "featured" *rises* as evidence
+    is destroyed, so a curve built on it would run backwards and average out to
+    something uninterpretable.
     """
     b = x.shape[0]
     n_pixels = x.shape[-1] * x.shape[-2]
     order = cam.flatten(1).argsort(dim=1, descending=True)
+
+    # +1 where the model said featured, -1 where it said smooth
+    sign = torch.where(model(x) >= 0, 1.0, -1.0).float()
+
+    def score(logit: torch.Tensor) -> np.ndarray:
+        return torch.sigmoid(sign * logit.float()).cpu().numpy()
 
     baseline = x.mean(dim=(2, 3), keepdim=True).expand_as(x).clone()
     blurred = _gaussian_blur(x, sigma=8.0)
@@ -269,8 +299,8 @@ def deletion_insertion(model, x: torch.Tensor, cam: torch.Tensor,
 
         deleted = x * (1 - mask) + baseline * mask
         inserted = blurred * (1 - mask) + x * mask
-        del_curve.append(torch.sigmoid(model(deleted)).float().cpu().numpy())
-        ins_curve.append(torch.sigmoid(model(inserted)).float().cpu().numpy())
+        del_curve.append(score(model(deleted)))
+        ins_curve.append(score(model(inserted)))
 
     return np.stack(del_curve, axis=1), np.stack(ins_curve, axis=1)
 
@@ -325,6 +355,27 @@ def background_reliance(cam: np.ndarray, footprint: np.ndarray) -> float:
     if total <= 0:
         return float("nan")
     return float(cam[~footprint].sum() / total)
+
+
+def background_excess(cam: np.ndarray, footprint: np.ndarray) -> float:
+    """Background reliance measured against the uniform-attribution null.
+
+    The raw share of attribution mass outside the galaxy is not comparable between
+    images, because it depends on how much of the frame the galaxy occupies: a
+    compact smooth galaxy leaves more background than a sprawling spiral, so it
+    scores worse for reasons of geometry rather than of behaviour. That confound
+    runs straight through our stratification, since the high-agreement galaxies are
+    predominantly the smooth ones.
+
+    A map that spread its mass evenly over the frame would score exactly
+    1 - footprint_fraction. Subtracting that null gives a quantity that is zero for
+    an uninformative map, negative for one that concentrates on the galaxy, and
+    positive for one that actively prefers empty sky.
+    """
+    reliance = background_reliance(cam, footprint)
+    if not np.isfinite(reliance):
+        return float("nan")
+    return float(reliance - (1.0 - footprint.mean()))
 
 
 # --------------------------------------------------------------------------- #
@@ -423,6 +474,7 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
                 "deletion_auc": float(del_curve[0].mean()),
                 "insertion_auc": float(ins_curve[0].mean()),
                 "background_reliance": background_reliance(cam_np, footprint),
+                "background_excess": background_excess(cam_np, footprint),
                 "footprint_fraction": float(footprint.mean()),
             })
     finally:
@@ -432,6 +484,7 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
     out_dir = ensure_dir(config.RESULTS / "xai")
     per_galaxy.to_csv(out_dir / f"{run_id}.csv", index=False)
 
+    high = per_galaxy["agreement"] >= 0.6
     summary = {
         "run_id": run_id,
         "arch": cfg["arch"],
@@ -440,12 +493,27 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
         "n": int(len(per_galaxy)),
         "deletion_auc": float(per_galaxy["deletion_auc"].mean()),
         "insertion_auc": float(per_galaxy["insertion_auc"].mean()),
+        # the difference between the two is the usual single-number summary
+        "faithfulness": float((per_galaxy["insertion_auc"]
+                               - per_galaxy["deletion_auc"]).mean()),
         "background_reliance": float(per_galaxy["background_reliance"].mean()),
-        # the same three, restricted to the galaxies the volunteers agreed on
-        "background_reliance_high_agreement": float(
-            per_galaxy.loc[per_galaxy["agreement"] >= 0.6, "background_reliance"].mean()),
-        "background_reliance_low_agreement": float(
-            per_galaxy.loc[per_galaxy["agreement"] < 0.6, "background_reliance"].mean()),
+        "background_excess": float(per_galaxy["background_excess"].mean()),
+        "footprint_fraction": float(per_galaxy["footprint_fraction"].mean()),
+        # split by whether the volunteers agreed, on the null-corrected quantity as
+        # well as the raw one: the raw one is confounded by galaxy size, and smooth
+        # galaxies are both more compact and more often unanimous
+        "background_reliance_high_agreement":
+            float(per_galaxy.loc[high, "background_reliance"].mean()),
+        "background_reliance_low_agreement":
+            float(per_galaxy.loc[~high, "background_reliance"].mean()),
+        "background_excess_high_agreement":
+            float(per_galaxy.loc[high, "background_excess"].mean()),
+        "background_excess_low_agreement":
+            float(per_galaxy.loc[~high, "background_excess"].mean()),
+        "footprint_high_agreement":
+            float(per_galaxy.loc[high, "footprint_fraction"].mean()),
+        "footprint_low_agreement":
+            float(per_galaxy.loc[~high, "footprint_fraction"].mean()),
         "accuracy_on_sample": float(per_galaxy["correct"].mean()),
     }
     write_json(out_dir / f"{run_id}.json", summary)
@@ -453,7 +521,9 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
     if make_panel:
         _panel(run_id, cams, per_galaxy)
     print(f"  deletion {summary['deletion_auc']:.3f}  insertion {summary['insertion_auc']:.3f}  "
-          f"background {summary['background_reliance']:.3f}")
+          f"background {summary['background_reliance']:.3f} "
+          f"(excess {summary['background_excess']:+.3f}, "
+          f"footprint {summary['footprint_fraction']:.3f})")
     return summary
 
 
@@ -510,7 +580,7 @@ def main() -> None:
         out.to_csv(config.RESULTS / "xai_summary.csv", index=False)
         print(f"\nwrote {config.RESULTS / 'xai_summary.csv'}")
         print(out[["arch", "label_mode", "method", "deletion_auc", "insertion_auc",
-                   "background_reliance"]].to_string(index=False))
+                   "faithfulness", "background_excess"]].to_string(index=False))
 
 
 if __name__ == "__main__":

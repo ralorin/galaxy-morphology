@@ -333,22 +333,31 @@ def table_xai(runs: pd.DataFrame) -> str:
             f"{acc.iloc[0]:.3f}" if len(acc) else "--",
             f"{row['deletion_auc']:.3f}",
             f"{row['insertion_auc']:.3f}",
-            f"{row['background_reliance']:.3f}",
-            f"{row['background_reliance_low_agreement']:.3f}",
+            f"{row['faithfulness']:+.3f}" if "faithfulness" in row else "--",
+            f"{row['background_excess']:+.3f}" if "background_excess" in row else "--",
+            f"{row['background_excess_low_agreement']:+.3f}"
+            if "background_excess_low_agreement" in row else "--",
         ]) + r" \\")
 
     header = (r"\textbf{Model} & \textbf{Labels} & \textbf{Method} & "
               r"\textbf{Accuracy} & \textbf{Del.}$\downarrow$ & "
-              r"\textbf{Ins.}$\uparrow$ & \textbf{Bkg.}$\downarrow$ & "
-              r"\textbf{Bkg. (low agr.)}$\downarrow$ \\")
+              r"\textbf{Ins.}$\uparrow$ & \textbf{Faith.}$\uparrow$ & "
+              r"\textbf{Bkg.}$\downarrow$ & \textbf{Bkg. (low agr.)}$\downarrow$ \\")
     caption = ("Are the explanations faithful? \\emph{Del.} and \\emph{Ins.} are the "
-               "areas under the deletion and insertion curves; a map that identifies "
-               "the pixels the network actually uses gives a low deletion and a high "
-               "insertion score. \\emph{Bkg.} is the share of attribution mass falling "
-               "outside the galaxy's own footprint, where nothing relevant can be, and "
-               "the last column restricts it to the galaxies the volunteers disagreed "
-               "about.")
-    return _wrap("\n".join(lines), caption, "tab:xai", "lllccccc", header)
+               "areas under the deletion and insertion curves, both tracking the score "
+               "of the class the model predicted on the intact image rather than the "
+               "score of the positive class; with three galaxies in four labelled "
+               "smooth, the latter would run in opposite directions for the two classes. "
+               "A map that identifies the pixels the network actually uses gives a low "
+               "deletion and a high insertion score, and \\emph{Faith.} is their "
+               "difference. \\emph{Bkg.} is the attribution mass falling outside the "
+               "galaxy's own footprint \\emph{in excess of what a uniform map would put "
+               "there}; the correction matters because compact galaxies leave more empty "
+               "sky than extended ones, and compact galaxies are also the ones "
+               "volunteers agree on. Zero means a map no more informative than uniform, "
+               "and negative means one that concentrates on the galaxy. The last column "
+               "restricts it to the galaxies the volunteers disagreed about.")
+    return _wrap("\n".join(lines), caption, "tab:xai", "lllcccccc", header)
 
 
 # --------------------------------------------------------------------------- #
@@ -573,6 +582,29 @@ def macros(runs: pd.DataFrame) -> str:
                 cmd("bkgRelianceCNN", f"{100 * cnn['background_reliance'].mean():.0f}")
             if not vit.empty:
                 cmd("bkgRelianceViT", f"{100 * vit['background_reliance'].mean():.0f}")
+            # the null-corrected quantity, which is what the prose argues from
+            if "background_excess" in xai:
+                cmd("bkgExcessMean", f"{100 * xai['background_excess'].mean():+.0f}")
+                cmd("bkgExcessHigh",
+                    f"{100 * xai['background_excess_high_agreement'].mean():+.0f}")
+                cmd("bkgExcessLow",
+                    f"{100 * xai['background_excess_low_agreement'].mean():+.0f}")
+                cmd("footprintFraction", f"{100 * xai['footprint_fraction'].mean():.0f}")
+                if not cnn.empty:
+                    cmd("bkgExcessCNN", f"{100 * cnn['background_excess'].mean():+.0f}")
+                if not vit.empty:
+                    cmd("bkgExcessViT", f"{100 * vit['background_excess'].mean():+.0f}")
+                by_mode = xai.pivot_table(index="arch", columns="label_mode",
+                                          values="background_excess")
+                if "soft" in by_mode and "hard" in by_mode:
+                    diff = (by_mode["hard"] - by_mode["soft"]).dropna()
+                    cmd("bkgExcessSoftGain", f"{100 * diff.mean():+.0f}")
+                    cmd("bkgExcessSoftBetter",
+                        f"{int((diff > 0).sum())} of {int(diff.notna().sum())}")
+            if "faithfulness" in xai:
+                cmd("faithfulnessMean", f"{xai['faithfulness'].mean():+.3f}")
+                best = xai.loc[xai["faithfulness"].idxmax()]
+                cmd("faithfulnessBest", PRETTY_ARCH.get(best["arch"], str(best["arch"])))
 
     # statistics
     fpath = config.RESULTS / "friedman.json"
@@ -622,6 +654,9 @@ MACRO_NAMES = (
     "decalsDropTuned decalsBestBalanced decalsAucDrop decalsThresholdMedian "
     "tunedThresholdMedian softAccGainTuned "
     "bkgRelianceMean bkgRelianceLow bkgRelianceHigh bkgRelianceCNN bkgRelianceViT "
+    "bkgExcessMean bkgExcessHigh bkgExcessLow bkgExcessCNN bkgExcessViT "
+    "bkgExcessSoftGain bkgExcessSoftBetter footprintFraction "
+    "faithfulnessMean faithfulnessBest "
     "friedmanP friedmanArchitectures friedmanSeeds nemenyiCD "
     "softVsHardEceP softVsHardPairs nRuns nArchitectures"
 ).split()
