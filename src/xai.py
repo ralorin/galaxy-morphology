@@ -24,20 +24,27 @@ eyeballing them:
                    fall fast, so lower is better.
 *   insertion AUC  start from a blurred image and restore the most salient pixels
                    first. Higher is better. `faithfulness` is the difference of the
-                   two, as a single number.
+                   two, as a single number. Both curves are normalised by the score
+                   on the intact image, so they read as the fraction of the original
+                   score retained and are comparable between models whose confidence
+                   is scaled differently.
 *   background excess
                    how much more attribution mass falls outside the galaxy's own
                    footprint than a uniform map would put there. This one is
                    specific to the problem and it is what catches a network keying
                    on sky noise or on a neighbour at the edge of the crop.
 
-Two details of those definitions do real work, and both were arrived at after the
-naive versions produced numbers that turned out to measure something else.
+Three details of those definitions do real work, and all three were arrived at after
+the naive versions produced numbers that turned out to measure something else.
 
-The curves track the predicted class rather than the positive class. Three of every
-four galaxies here are smooth, and for those the probability of "featured" rises as
-evidence is destroyed; a curve averaged over both classes would run in opposite
-directions for each and mean nothing.
+The curves track the predicted class rather than the positive class, and they are
+normalised. Three of every four galaxies here are smooth, and for those the
+probability of "featured" rises as evidence is destroyed; a curve averaged over both
+classes would run in opposite directions for each and mean nothing. The
+normalisation matters for a second reason: a model trained on vote fractions has
+probabilities compressed towards one half, so its curves start lower and its
+unnormalised areas are smaller for reasons that have nothing to do with the quality
+of the saliency map.
 
 Background reliance is quoted against a null. The raw share of mass outside the
 galaxy depends on how much of the frame the galaxy fills, and compact smooth
@@ -280,8 +287,9 @@ def deletion_insertion(model, x: torch.Tensor, cam: torch.Tensor,
     n_pixels = x.shape[-1] * x.shape[-2]
     order = cam.flatten(1).argsort(dim=1, descending=True)
 
+    intact = model(x)
     # +1 where the model said featured, -1 where it said smooth
-    sign = torch.where(model(x) >= 0, 1.0, -1.0).float()
+    sign = torch.where(intact >= 0, 1.0, -1.0).float()
 
     def score(logit: torch.Tensor) -> np.ndarray:
         return torch.sigmoid(sign * logit.float()).cpu().numpy()
@@ -302,7 +310,18 @@ def deletion_insertion(model, x: torch.Tensor, cam: torch.Tensor,
         del_curve.append(score(model(deleted)))
         ins_curve.append(score(model(inserted)))
 
-    return np.stack(del_curve, axis=1), np.stack(ins_curve, axis=1)
+    deletion = np.stack(del_curve, axis=1)
+    insertion = np.stack(ins_curve, axis=1)
+
+    # Normalise by the score on the intact image. Without this the areas are not
+    # comparable between models, because a model whose probabilities are compressed
+    # towards one half -- which is exactly what training on vote fractions produces
+    # -- starts both curves lower and therefore scores a smaller area for reasons of
+    # calibration rather than of explanation quality. After normalising, deletion
+    # starts at one and insertion ends at one for every model, and both areas read
+    # as the fraction of the original score retained.
+    reference = np.maximum(score(intact), 1e-6)[:, None]
+    return deletion / reference, insertion / reference
 
 
 def _gaussian_blur(x: torch.Tensor, sigma: float) -> torch.Tensor:

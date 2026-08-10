@@ -24,7 +24,7 @@ export PYTHONUNBUFFERED=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cd "$SLURM_SUBMIT_DIR"
 
-N=${GZM_XAI_N:-48}
+N=${GZM_XAI_N:-200}
 
 echo "GPU asignada: $CUDA_VISIBLE_DEVICES"
 echo "node: $(hostname)   start: $(date)"
