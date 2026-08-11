@@ -385,15 +385,27 @@ def selective_prediction(runs: pd.DataFrame,
     return out.merge(runs[["run_id", *CONFIG_KEYS]], on="run_id", how="left")
 
 
-def calibration_curves(runs: pd.DataFrame, run_ids: list[str]) -> pd.DataFrame:
+def calibration_curves(runs: pd.DataFrame, run_ids: list[str], n_bins: int = 15
+                       ) -> pd.DataFrame:
+    """Reliability curves, one row per (run, bin).
+
+    The `bin` index is what to average over when pooling runs: `confidence` is the
+    mean predicted probability inside the bin and therefore differs slightly from
+    one run to the next, so grouping on it produces a ragged curve rather than a
+    pooled one.
+    """
+    edges = np.linspace(0.0, 1.0, n_bins + 1)
     rows = []
     for run_id in run_ids:
         pred = _predictions(run_id)
         if pred is None:
             continue
-        centres, observed, counts = reliability_curve(pred["label"], pred["prob"])
-        for c, o, n in zip(centres, observed, counts):
-            rows.append({"run_id": run_id, "confidence": c, "observed": o, "count": int(n)})
+        centres, observed, counts = reliability_curve(pred["label"], pred["prob"],
+                                                      n_bins=n_bins)
+        for b, (c, o, n) in enumerate(zip(centres, observed, counts)):
+            rows.append({"run_id": run_id, "bin": b,
+                         "bin_centre": float((edges[b] + edges[b + 1]) / 2),
+                         "confidence": c, "observed": o, "count": int(n)})
     out = pd.DataFrame(rows)
     if out.empty:
         return out

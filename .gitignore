@@ -10,11 +10,17 @@ data/
 *.zip
 *.csv.gz
 
-# everything the pipeline writes
+# everything the pipeline writes to scratch
 work/
 *.npy
 *.pt
 *.pth
+
+# results/ IS committed -- see results/README.md. It holds the aggregate tables,
+# the per-run metrics and the figures, which are small and are the record behind
+# the paper. The per-galaxy prediction files are not: they are hundreds of
+# megabytes and regenerable from the checkpoints.
+results/**/predictions_*.csv
 
 # slurm output
 logs/*.out
