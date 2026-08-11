@@ -1,0 +1,36 @@
+\begin{table}[!htb]
+\centering
+\caption{Zero-shot transfer from SDSS to the DESI Legacy Imaging Surveys. Models are trained only on Galaxy Zoo~2 cutouts and evaluated, without any adaptation, on the Galaxy10 DECaLS images whose labels answer the same Galaxy Zoo question. We report balanced accuracy rather than accuracy because the featured fraction differs substantially between the two surveys, so a raw accuracy would confound a shift in class prior with a loss of discrimination. Columns marked $\dagger$ are evaluated at the operating point chosen on the \emph{source} survey's validation split instead of at 0.5; nothing from the target survey informs it, so the evaluation remains zero-shot. $\Delta^{\dagger}$ is the balanced accuracy lost in the transfer at that operating point, and the final column is threshold-free.}
+\label{tab:cross}
+\footnotesize
+\begin{tabular}{llccccc}
+\toprule
+\textbf{Model} & \textbf{Labels} & \textbf{GZ2 bal.} & \textbf{DECaLS bal.} & \textbf{DECaLS bal.}$^{\dagger}$ & $\boldsymbol{\Delta^{\dagger}}$ & \textbf{DECaLS AUC} \\
+\midrule
+CNN-small & hard & 0.910 & 0.865 & 0.795 & +0.130 & 0.951 \\
+ & soft & 0.921 & 0.873 & 0.898 & +0.034 & 0.972 \\
+CNN-deep & hard & 0.920 & 0.910 & 0.911 & +0.022 & 0.968 \\
+ & soft & 0.930 & 0.897 & 0.913 & +0.027 & 0.973 \\
+CNN-deep+reg & hard & 0.921 & 0.911 & 0.912 & +0.019 & 0.970 \\
+ & soft & 0.929 & 0.903 & 0.922 & +0.018 & 0.980 \\
+ResNet-50 & hard & 0.923 & 0.897 & 0.895 & +0.049 & 0.957 \\
+ & soft & 0.938 & 0.925 & 0.932 & +0.017 & 0.980 \\
+DenseNet-121 & hard & 0.932 & 0.944 & 0.945 & -0.003 & 0.985 \\
+ & soft & 0.941 & 0.956 & 0.955 & -0.005 & 0.990 \\
+EfficientNetV2-S & hard & 0.933 & 0.934 & 0.947 & -0.005 & 0.989 \\
+ & soft & 0.940 & 0.960 & 0.951 & -0.002 & 0.992 \\
+ConvNeXt-T & hard & 0.940 & 0.953 & 0.954 & -0.010 & 0.989 \\
+ & soft & 0.942 & 0.961 & 0.960 & -0.011 & 0.991 \\
+MobileNetV3-L & hard & 0.928 & 0.741 & 0.707 & +0.233 & 0.856 \\
+ & soft & 0.938 & 0.622 & 0.597 & +0.349 & 0.806 \\
+ViT-S/16 & hard & 0.921 & 0.946 & 0.947 & -0.005 & 0.988 \\
+ & soft & 0.937 & 0.959 & 0.958 & -0.009 & 0.991 \\
+ViT-B/16 & hard & 0.930 & 0.933 & 0.936 & +0.005 & 0.982 \\
+ & soft & 0.942 & 0.955 & 0.951 & -0.003 & 0.989 \\
+DeiT3-S/16 & hard & 0.928 & 0.947 & 0.941 & +0.000 & 0.986 \\
+ & soft & 0.943 & 0.954 & 0.948 & +0.000 & 0.990 \\
+Swin-T & hard & 0.934 & 0.943 & 0.945 & -0.003 & 0.986 \\
+ & soft & 0.942 & 0.959 & 0.952 & -0.002 & 0.991 \\
+\bottomrule
+\end{tabular}
+\end{table}

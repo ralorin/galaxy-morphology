@@ -1,0 +1,33 @@
+\begin{table}[!htb]
+\centering
+\caption{Effect of the training target. All four modes are scored against the same thresholded test labels, so the columns are directly comparable. $\rho$ is the Spearman correlation between the predicted probability and the volunteer vote fraction on the test split: it measures whether the network's confidence recovers human disagreement rather than merely being well calibrated. \emph{hard, confident only} trains on the galaxies with agreement $\geq 0.6$ and is the control for the label-noise account.}
+\label{tab:labels}
+\footnotesize
+\begin{tabular}{llccccc}
+\toprule
+\textbf{Model} & \textbf{Training target} & \textbf{Accuracy} & \textbf{AUC-ROC} & \textbf{ECE} & \textbf{Brier} & $\boldsymbol{\rho}$ \\
+\midrule
+ResNet-50 & hard & 0.948\,$\pm$\,0.001 & 0.989\,$\pm$\,0.000 & 0.012\,$\pm$\,0.004 & 0.038\,$\pm$\,0.001 & 0.880 \\
+ & hard, confident only & 0.943\,$\pm$\,0.002 & 0.987\,$\pm$\,0.000 & 0.045\,$\pm$\,0.000 & 0.050\,$\pm$\,0.001 & 0.845 \\
+ & soft (vote fraction) & 0.952\,$\pm$\,0.002 & 0.990\,$\pm$\,0.001 & 0.142\,$\pm$\,0.001 & 0.060\,$\pm$\,0.001 & 0.921 \\
+ & soft, vote-weighted & 0.953\,$\pm$\,0.001 & 0.991\,$\pm$\,0.000 & 0.143\,$\pm$\,0.001 & 0.060\,$\pm$\,0.000 & 0.922 \\
+ & hard, debiased fraction & 0.691\,$\pm$\,0.013 & 0.954\,$\pm$\,0.001 & 0.176\,$\pm$\,0.009 & 0.243\,$\pm$\,0.007 & 0.818 \\
+ & soft, debiased fraction & 0.712\,$\pm$\,0.011 & 0.942\,$\pm$\,0.003 & 0.076\,$\pm$\,0.009 & 0.208\,$\pm$\,0.007 & 0.828 \\
+\addlinespace
+ConvNeXt-T & hard & 0.948\,$\pm$\,0.001 & 0.989\,$\pm$\,0.000 & 0.010\,$\pm$\,0.004 & 0.037\,$\pm$\,0.001 & 0.881 \\
+ & hard, confident only & 0.946\,$\pm$\,0.002 & 0.988\,$\pm$\,0.001 & 0.043\,$\pm$\,0.003 & 0.048\,$\pm$\,0.002 & 0.866 \\
+ & soft (vote fraction) & 0.952\,$\pm$\,0.004 & 0.991\,$\pm$\,0.002 & 0.142\,$\pm$\,0.003 & 0.060\,$\pm$\,0.002 & 0.921 \\
+ & soft, vote-weighted & 0.955\,$\pm$\,0.001 & 0.992\,$\pm$\,0.000 & 0.142\,$\pm$\,0.001 & 0.058\,$\pm$\,0.000 & 0.923 \\
+ & hard, debiased fraction & 0.682\,$\pm$\,0.008 & 0.958\,$\pm$\,0.001 & 0.168\,$\pm$\,0.016 & 0.240\,$\pm$\,0.012 & 0.829 \\
+ & soft, debiased fraction & 0.708\,$\pm$\,0.037 & 0.943\,$\pm$\,0.003 & 0.093\,$\pm$\,0.021 & 0.215\,$\pm$\,0.024 & 0.826 \\
+\addlinespace
+ViT-S/16 & hard & 0.945\,$\pm$\,0.001 & 0.988\,$\pm$\,0.000 & 0.011\,$\pm$\,0.006 & 0.039\,$\pm$\,0.001 & 0.898 \\
+ & hard, confident only & 0.939\,$\pm$\,0.004 & 0.986\,$\pm$\,0.001 & 0.048\,$\pm$\,0.002 & 0.053\,$\pm$\,0.001 & 0.858 \\
+ & soft (vote fraction) & 0.947\,$\pm$\,0.006 & 0.988\,$\pm$\,0.003 & 0.139\,$\pm$\,0.005 & 0.062\,$\pm$\,0.003 & 0.918 \\
+ & soft, vote-weighted & 0.953\,$\pm$\,0.001 & 0.991\,$\pm$\,0.000 & 0.144\,$\pm$\,0.003 & 0.060\,$\pm$\,0.001 & 0.922 \\
+ & hard, debiased fraction & 0.693\,$\pm$\,0.019 & 0.952\,$\pm$\,0.003 & 0.184\,$\pm$\,0.021 & 0.246\,$\pm$\,0.016 & 0.813 \\
+ & soft, debiased fraction & 0.686\,$\pm$\,0.008 & 0.938\,$\pm$\,0.001 & 0.102\,$\pm$\,0.012 & 0.227\,$\pm$\,0.007 & 0.825 \\
+\addlinespace
+\bottomrule
+\end{tabular}
+\end{table}

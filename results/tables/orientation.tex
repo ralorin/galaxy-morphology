@@ -1,0 +1,30 @@
+\begin{table}[!htb]
+\centering
+\caption{Orientation. \emph{learnt} means the network sees rotated and mirrored copies during training; \emph{built in} means its logit is averaged over the eight elements of $D_4$, which makes it exactly invariant at eight times the inference cost. $\varepsilon_{D_4}$ is the mean spread of the predicted probability over the eight views of a test image, so it is zero for the built-in models by construction and measures how much of the symmetry the others failed to absorb. The last column is training wall-clock time.}
+\label{tab:orientation}
+\footnotesize
+\begin{tabular}{lllcccc}
+\toprule
+\textbf{Model} & \textbf{Augmentation} & \textbf{Invariance} & \textbf{Accuracy} & \textbf{AUC-ROC} & $\boldsymbol{\varepsilon_{D_4}}$ & \textbf{min} \\
+\midrule
+ResNet-50 & none & learnt & 0.945\,$\pm$\,0.003 & 0.988\,$\pm$\,0.001 & 0.089\,$\pm$\,0.016 & 19 \\
+ & flips & learnt & 0.951\,$\pm$\,0.001 & 0.990\,$\pm$\,0.000 & 0.065\,$\pm$\,0.002 & 27 \\
+ & $D_4$ & learnt & 0.952\,$\pm$\,0.002 & 0.990\,$\pm$\,0.001 & 0.047\,$\pm$\,0.010 & 33 \\
+ & $D_4$ + photometric & learnt & 0.954\,$\pm$\,0.000 & 0.991\,$\pm$\,0.000 & 0.043\,$\pm$\,0.002 & 43 \\
+ & none & built in & 0.953\,$\pm$\,0.002 & 0.991\,$\pm$\,0.000 & 0.000\,$\pm$\,0.000 & 202 \\
+\addlinespace
+ConvNeXt-T & none & learnt & 0.950\,$\pm$\,0.005 & 0.991\,$\pm$\,0.000 & 0.081\,$\pm$\,0.015 & 29 \\
+ & flips & learnt & 0.954\,$\pm$\,0.001 & 0.991\,$\pm$\,0.000 & 0.065\,$\pm$\,0.007 & 33 \\
+ & $D_4$ & learnt & 0.952\,$\pm$\,0.004 & 0.991\,$\pm$\,0.002 & 0.046\,$\pm$\,0.004 & 33 \\
+ & $D_4$ + photometric & learnt & 0.955\,$\pm$\,0.001 & 0.992\,$\pm$\,0.000 & 0.041\,$\pm$\,0.001 & 47 \\
+ & none & built in & 0.954\,$\pm$\,0.001 & 0.991\,$\pm$\,0.000 & 0.000\,$\pm$\,0.000 & 520 \\
+\addlinespace
+ViT-S/16 & none & learnt & 0.945\,$\pm$\,0.001 & 0.989\,$\pm$\,0.000 & 0.071\,$\pm$\,0.003 & 20 \\
+ & flips & learnt & 0.949\,$\pm$\,0.004 & 0.990\,$\pm$\,0.000 & 0.066\,$\pm$\,0.003 & 35 \\
+ & $D_4$ & learnt & 0.947\,$\pm$\,0.006 & 0.988\,$\pm$\,0.003 & 0.049\,$\pm$\,0.009 & 36 \\
+ & $D_4$ + photometric & learnt & 0.954\,$\pm$\,0.001 & 0.991\,$\pm$\,0.000 & 0.042\,$\pm$\,0.005 & 50 \\
+ & none & built in & 0.951\,$\pm$\,0.001 & 0.990\,$\pm$\,0.000 & 0.000\,$\pm$\,0.000 & 357 \\
+\addlinespace
+\bottomrule
+\end{tabular}
+\end{table}

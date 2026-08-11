@@ -1,0 +1,32 @@
+\begin{table}[!htb]
+\centering
+\caption{Remaining design choices, test accuracy over two or three seeds. Each block gives its levels in the order named in the heading. Swin-T is absent from the resolution block because its window size fixes the input to 224\,px. The initialisation block compares ImageNet weights with random initialisation, in both cases fine-tuning the whole network; the frozen row of the second block is the linear-probe setting and should not be confused with it.}
+\label{tab:protocol}
+\footnotesize
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{level 1} & \textbf{level 2} & \textbf{level 3} \\
+\midrule
+\multicolumn{4}{l}{\textit{Input resolution: 112 / 160 / 224 px}} \\
+ResNet-50 & 0.953\,$\pm$\,0.001 & 0.952\,$\pm$\,0.000 & 0.953\,$\pm$\,0.001 \\
+ConvNeXt-T & 0.953\,$\pm$\,0.000 & 0.954\,$\pm$\,0.001 & 0.955\,$\pm$\,0.001 \\
+ViT-S/16 & 0.947\,$\pm$\,0.001 & 0.950\,$\pm$\,0.000 & 0.952\,$\pm$\,0.000 \\
+\addlinespace
+\multicolumn{4}{l}{\textit{Fine-tuning depth: frozen / last stage / full}} \\
+ResNet-50 & 0.851\,$\pm$\,0.001 & 0.914\,$\pm$\,0.000 & 0.953\,$\pm$\,0.001 \\
+ConvNeXt-T & 0.903\,$\pm$\,0.000 & 0.934\,$\pm$\,0.001 & 0.954\,$\pm$\,0.001 \\
+ViT-S/16 & 0.903\,$\pm$\,0.001 & 0.932\,$\pm$\,0.001 & 0.951\,$\pm$\,0.002 \\
+\addlinespace
+\multicolumn{4}{l}{\textit{Loss: cross-entropy / focal / label smoothing}} \\
+ResNet-50 & 0.953\,$\pm$\,0.001 & 0.952\,$\pm$\,0.000 & 0.953\,$\pm$\,0.001 \\
+ConvNeXt-T & 0.954\,$\pm$\,0.001 & 0.954\,$\pm$\,0.000 & 0.954\,$\pm$\,0.001 \\
+ViT-S/16 & 0.951\,$\pm$\,0.002 & 0.951\,$\pm$\,0.000 & 0.953\,$\pm$\,0.001 \\
+\addlinespace
+\multicolumn{4}{l}{\textit{Initialisation: ImageNet / random}} \\
+ResNet-50 & 0.953\,$\pm$\,0.001 & 0.949\,$\pm$\,0.001 &  \\
+ConvNeXt-T & 0.954\,$\pm$\,0.001 & 0.947\,$\pm$\,0.001 &  \\
+ViT-S/16 & 0.951\,$\pm$\,0.002 & 0.937\,$\pm$\,0.001 &  \\
+\addlinespace
+\bottomrule
+\end{tabular}
+\end{table}

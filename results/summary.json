@@ -1,0 +1,81 @@
+{
+  "accuracy_by_agreement_bin": {
+    "0.0-0.2": {
+      "accuracy": 0.6554556728435718,
+      "balanced_accuracy": 0.6514151017834546,
+      "error_share": 0.6937646153654417,
+      "lift": 0.08702019213082461,
+      "majority_baseline": 0.5684354807127472,
+      "n": 5107.0,
+      "share": 0.10682312583668005
+    },
+    "0.2-0.4": {
+      "accuracy": 0.8879537085744346,
+      "balanced_accuracy": 0.8829741034789355,
+      "error_share": 0.23735139443651007,
+      "lift": 0.2731895493599859,
+      "majority_baseline": 0.6147641592144486,
+      "n": 5703.0,
+      "share": 0.11928965863453816
+    },
+    "0.4-0.6": {
+      "accuracy": 0.9766551866051508,
+      "balanced_accuracy": 0.9702365673479254,
+      "error_share": 0.05255720470847423,
+      "lift": 0.269006866376416,
+      "majority_baseline": 0.7076483202287348,
+      "n": 6995.0,
+      "share": 0.14631442436412315
+    },
+    "0.6-0.8": {
+      "accuracy": 0.99621885775616,
+      "balanced_accuracy": 0.9914053436406377,
+      "error_share": 0.012903760825662258,
+      "lift": 0.16351350734169126,
+      "majority_baseline": 0.8327053504144687,
+      "n": 13270.0,
+      "share": 0.2775686077643909
+    },
+    "0.8-1.0": {
+      "accuracy": 0.9990028776379103,
+      "balanced_accuracy": 0.9980521205821393,
+      "error_share": 0.0034230246639117834,
+      "lift": 0.22669665639844333,
+      "majority_baseline": 0.7723062212394669,
+      "n": 16733.0,
+      "share": 0.35000418340026773
+    }
+  },
+  "best_hard": {
+    "accuracy_mean": 0.9486613119143239,
+    "accuracy_std": 0.0009888234462693398,
+    "arch": "densenet121",
+    "auc_mean": 0.9889107682244077,
+    "ece_mean": 0.013265589715447435,
+    "n_seeds": 5
+  },
+  "best_soft": {
+    "accuracy_mean": 0.953748326639893,
+    "accuracy_std": 0.0007445982416762487,
+    "arch": "densenet121",
+    "auc_mean": 0.9911646126440724,
+    "ece_mean": 0.14114331208710862,
+    "n_seeds": 5
+  },
+  "coverage_at_99_best": 0.882843875502008,
+  "coverage_at_99_median": 0.8657337684069611,
+  "n_runs": 281,
+  "vote_ceiling": {
+    "bayes_accuracy": 0.9653797419837712,
+    "bayes_accuracy_ci": [
+      0.964529810122524,
+      0.9662823347645799
+    ],
+    "column": "p_featured",
+    "label_noise_rate": 0.03462025801622885,
+    "median_votes": 41.0,
+    "n_test": 47808,
+    "panel_agreement": 0.9513628385304953,
+    "panel_size_column": "votes_binary"
+  }
+}

@@ -1,0 +1,42 @@
+\begin{table}[!htb]
+\centering
+\caption{Held-out performance on the Galaxy Zoo~2 test split, mean\,$\pm$\,standard deviation over five seeds. \emph{Labels} is the training target: \emph{hard} thresholds the volunteer vote fraction, \emph{soft} regresses it. \emph{Cov.@99} is the fraction of the test set that can be classified automatically while holding 99\% accuracy, the rest being deferred. All runs use $D_4$ augmentation, full fine-tuning and the complete training split.}
+\label{tab:main}
+\scriptsize
+\begin{tabular}{llcccccc}
+\toprule
+\textbf{Model} & \textbf{Labels} & \textbf{Accuracy} & \textbf{Bal.\ acc.} & \textbf{AUC-ROC} & \textbf{ECE} & \textbf{Cov.@99} & \textbf{M par.} \\
+\midrule
+\multicolumn{8}{l}{\textit{Scratch CNN}} \\
+CNN-small & hard & 0.933\,$\pm$\,0.000 & 0.909\,$\pm$\,0.001 & 0.981\,$\pm$\,0.000 & 0.006\,$\pm$\,0.001 & 0.77 & 2.1 \\
+ & soft & 0.937\,$\pm$\,0.002 & 0.919\,$\pm$\,0.002 & 0.983\,$\pm$\,0.001 & 0.134\,$\pm$\,0.001 & 0.79 & 2.1 \\
+CNN-deep & hard & 0.940\,$\pm$\,0.001 & 0.921\,$\pm$\,0.001 & 0.985\,$\pm$\,0.000 & 0.006\,$\pm$\,0.001 & 0.81 & 4.6 \\
+ & soft & 0.946\,$\pm$\,0.000 & 0.930\,$\pm$\,0.001 & 0.988\,$\pm$\,0.000 & 0.139\,$\pm$\,0.001 & 0.84 & 4.6 \\
+CNN-deep+reg & hard & 0.940\,$\pm$\,0.001 & 0.919\,$\pm$\,0.002 & 0.984\,$\pm$\,0.000 & 0.002\,$\pm$\,0.000 & 0.81 & 4.6 \\
+ & soft & 0.945\,$\pm$\,0.000 & 0.929\,$\pm$\,0.001 & 0.987\,$\pm$\,0.000 & 0.140\,$\pm$\,0.001 & 0.84 & 4.6 \\
+\addlinespace
+\multicolumn{8}{l}{\textit{Pretrained CNN}} \\
+ResNet-50 & hard & 0.948\,$\pm$\,0.001 & 0.931\,$\pm$\,0.005 & 0.989\,$\pm$\,0.000 & 0.012\,$\pm$\,0.004 & 0.85 & 23.5 \\
+ & soft & 0.953\,$\pm$\,0.001 & 0.941\,$\pm$\,0.002 & 0.991\,$\pm$\,0.000 & 0.143\,$\pm$\,0.001 & 0.87 & 23.5 \\
+DenseNet-121 & hard & 0.949\,$\pm$\,0.001 & 0.931\,$\pm$\,0.003 & 0.989\,$\pm$\,0.000 & 0.013\,$\pm$\,0.001 & 0.85 & 7.0 \\
+ & soft & 0.954\,$\pm$\,0.001 & 0.941\,$\pm$\,0.002 & 0.991\,$\pm$\,0.000 & 0.141\,$\pm$\,0.003 & 0.88 & 7.0 \\
+EfficientNetV2-S & hard & 0.947\,$\pm$\,0.002 & 0.935\,$\pm$\,0.003 & 0.989\,$\pm$\,0.000 & 0.009\,$\pm$\,0.002 & 0.85 & 20.2 \\
+ & soft & 0.954\,$\pm$\,0.001 & 0.944\,$\pm$\,0.003 & 0.991\,$\pm$\,0.000 & 0.147\,$\pm$\,0.006 & 0.88 & 20.2 \\
+ConvNeXt-T & hard & 0.948\,$\pm$\,0.001 & 0.932\,$\pm$\,0.007 & 0.989\,$\pm$\,0.000 & 0.010\,$\pm$\,0.004 & 0.86 & 27.8 \\
+ & soft & 0.954\,$\pm$\,0.001 & 0.942\,$\pm$\,0.002 & 0.991\,$\pm$\,0.000 & 0.143\,$\pm$\,0.002 & 0.88 & 27.8 \\
+MobileNetV3-L & hard & 0.946\,$\pm$\,0.001 & 0.928\,$\pm$\,0.003 & 0.988\,$\pm$\,0.000 & 0.014\,$\pm$\,0.003 & 0.84 & 4.2 \\
+ & soft & 0.952\,$\pm$\,0.001 & 0.940\,$\pm$\,0.002 & 0.990\,$\pm$\,0.000 & 0.142\,$\pm$\,0.002 & 0.87 & 4.2 \\
+\addlinespace
+\multicolumn{8}{l}{\textit{Transformer}} \\
+ViT-S/16 & hard & 0.945\,$\pm$\,0.001 & 0.931\,$\pm$\,0.006 & 0.988\,$\pm$\,0.000 & 0.011\,$\pm$\,0.006 & 0.84 & 21.7 \\
+ & soft & 0.951\,$\pm$\,0.002 & 0.938\,$\pm$\,0.003 & 0.990\,$\pm$\,0.001 & 0.141\,$\pm$\,0.004 & 0.86 & 21.6 \\
+ViT-B/16 & hard & 0.945\,$\pm$\,0.001 & 0.926\,$\pm$\,0.006 & 0.988\,$\pm$\,0.000 & 0.019\,$\pm$\,0.002 & 0.84 & 85.8 \\
+ & soft & 0.952\,$\pm$\,0.001 & 0.939\,$\pm$\,0.005 & 0.991\,$\pm$\,0.000 & 0.143\,$\pm$\,0.002 & 0.87 & 85.8 \\
+DeiT3-S/16 & hard & 0.947\,$\pm$\,0.001 & 0.930\,$\pm$\,0.002 & 0.988\,$\pm$\,0.000 & 0.019\,$\pm$\,0.003 & 0.85 & 21.7 \\
+ & soft & 0.953\,$\pm$\,0.001 & 0.943\,$\pm$\,0.002 & 0.991\,$\pm$\,0.000 & 0.143\,$\pm$\,0.003 & 0.87 & 21.7 \\
+Swin-T & hard & 0.948\,$\pm$\,0.000 & 0.931\,$\pm$\,0.003 & 0.989\,$\pm$\,0.000 & 0.014\,$\pm$\,0.005 & 0.85 & 27.5 \\
+ & soft & 0.954\,$\pm$\,0.001 & 0.943\,$\pm$\,0.002 & 0.991\,$\pm$\,0.000 & 0.141\,$\pm$\,0.001 & 0.87 & 27.5 \\
+\addlinespace
+\bottomrule
+\end{tabular}
+\end{table}
