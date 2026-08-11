@@ -39,6 +39,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
@@ -148,6 +149,69 @@ def _tidy(ax, xlabel=None, ylabel=None, title=None):
     ax.tick_params(length=0)
 
 
+def _place_labels(fig, ax, items, fontsize=6.5, pad=3.0, marker_radius=6.0):
+    """Label points so that labels overlap neither each other nor any marker.
+
+    Fixed offsets, or offsets alternating on a cycle, are enough while the points are
+    spread out and fail as soon as several land close together, which is exactly what
+    happens when half a dozen architectures perform alike. For each point in turn this
+    tries six positions around the marker and takes the first that collides with
+    nothing already on the canvas -- earlier labels and every marker, including the
+    ones not yet labelled -- falling back to the first position if all six collide.
+    The order is the caller's, so the most important labels choose first.
+
+    items: iterable of (x, y, text, colour) in data coordinates.
+    """
+    fig.canvas.draw()                      # transData is only valid once laid out
+    scale = fig.dpi / 72.0                 # offsets are quoted in points
+    items = list(items)
+    # three rings outward. A label in the first ring sits against its marker and needs
+    # nothing else; one pushed to an outer ring is far enough that ownership stops
+    # being obvious, so it gets a leader line back to its point.
+    ring1 = ((9, -3), (-9, -3), (7, 5), (-7, 5), (7, -12), (-7, -12))
+    ring2 = ((17, 9), (-17, 9), (17, -17), (-17, -17), (21, -3), (-21, -3))
+    ring3 = ((27, 19), (-27, 19), (27, -27), (-27, -27), (5, 20), (5, -26))
+    places = ring1 + ring2 + ring3
+    r = marker_radius * scale
+    # every marker is an obstacle from the start, so a label never lands on a point
+    taken = [(px - r, py - r, px + r, py + r)
+             for px, py in (ax.transData.transform((x, y)) for x, y, _, _ in items)]
+
+    def box_at(px, py, dx, dy, w, h):
+        left = px + dx * scale if dx > 0 else px + dx * scale - w
+        bottom = py + dy * scale
+        return (left - pad, bottom - pad, left + w + pad, bottom + h + pad)
+
+    for x, y, text, colour in items:
+        px, py = ax.transData.transform((x, y))
+        w = 0.58 * fontsize * len(text) * scale     # a serviceable width estimate
+        h = 1.25 * fontsize * scale
+        dx, dy = next(
+            (p for p in places
+             if all(box_at(px, py, *p, w, h)[2] < o[0] or box_at(px, py, *p, w, h)[0] > o[2]
+                    or box_at(px, py, *p, w, h)[3] < o[1]
+                    or box_at(px, py, *p, w, h)[1] > o[3] for o in taken)),
+            places[0])
+        taken.append(box_at(px, py, dx, dy, w, h))
+        leader = dict(arrowprops=dict(arrowstyle="-", lw=0.5, color=INK_MUTED,
+                                      shrinkA=0, shrinkB=3)) \
+            if (dx, dy) not in ring1 else {}
+        ax.annotate(text, (x, y), textcoords="offset points", xytext=(dx, dy),
+                    ha="left" if dx > 0 else "right", fontsize=fontsize, color=colour,
+                    **leader)
+
+
+def _headroom(ax, fraction: float) -> None:
+    """Open empty space at the top of the axes so a legend can sit inside it.
+
+    Legends anchored outside the axes collide with the panel title, and loc="best"
+    moves with the data, which makes the layout unreproducible. Reserving a band and
+    putting the legend in it is stable whatever the values turn out to be.
+    """
+    lo, hi = ax.get_ylim()
+    ax.set_ylim(lo, hi + (hi - lo) * fraction)
+
+
 def _save(fig, out_dir: Path, name: str) -> None:
     path = ensure_dir(out_dir) / f"{name}.pdf"
     fig.savefig(path)
@@ -194,9 +258,12 @@ def fig_dataset(out_dir: Path) -> None:
     ax = fig.add_subplot(gs[0, 1])
     ax.hist(table["agreement"], bins=50, color=SLOT[0])
     ax.axvline(0.6, color=INK_MUTED, lw=0.8)
-    ax.annotate("confident\nthreshold", xy=(0.6, ax.get_ylim()[1] * 0.82),
-                xytext=(4, 0), textcoords="offset points", fontsize=6.5,
-                color=INK_MUTED, va="top")
+    # the bars are tall right where the line falls, so the label needs a surface
+    # patch behind it or it reads as part of the histogram
+    ax.annotate("confident\nthreshold", xy=(0.6, ax.get_ylim()[1]),
+                xytext=(3, -1), textcoords="offset points", fontsize=6.5,
+                color=INK_SECOND, va="top", ha="left",
+                bbox=dict(facecolor=SURFACE, edgecolor="none", pad=1.0))
     _tidy(ax, r"agreement $|2p-1|$", "galaxies", "(b) how much they agreed")
 
     ax = fig.add_subplot(gs[0, 2])
@@ -213,6 +280,7 @@ def fig_dataset(out_dir: Path) -> None:
     ax.set_yticks([])
     ax.grid(False)
     _tidy(ax, "agreement bin (lower edge)", None, "(c) bins used throughout")
+    ax.spines["left"].set_visible(False)   # no y scale, so no y spine
 
     rng = np.random.default_rng(config.SEED)
     picks = []
@@ -228,8 +296,12 @@ def fig_dataset(out_dir: Path) -> None:
         ax.set_xticks([]); ax.set_yticks([]); ax.grid(False)
         for spine in ax.spines.values():
             spine.set_visible(False)
-        ax.set_title(f"$p$={row['p_featured']:.2f}   $N$={int(row['votes'])}",
-                     fontsize=6.5, color=INK_SECOND)
+        # the strip runs left to right in order of increasing agreement, which is
+        # invisible if only p is printed: p=0.49 and p=1.00 look unrelated until
+        # you see that a runs 0.02 to 1.00 across the row
+        ax.set_title(f"$a$={row['agreement']:.2f}\n"
+                     f"$p$={row['p_featured']:.2f}, $N$={int(row['votes'])}",
+                     fontsize=6.5, color=INK_SECOND, linespacing=1.4)
     _save(fig, out_dir, "fig_dataset")
 
 
@@ -582,7 +654,7 @@ def fig_pareto(out_dir: Path) -> None:
             front_names.append(arch)
             xs.append(row["throughput"]); ys.append(row["accuracy"])
 
-    fig, ax = plt.subplots(figsize=(5.4, 3.6))
+    fig, ax = plt.subplots(figsize=(5.8, 4.0))
     ax.step(xs, ys, where="post", lw=0.9, color=INK_MUTED, ls=(0, (4, 3)), zorder=2,
             label="Pareto front")
     for arch, row in g.iterrows():
@@ -590,19 +662,21 @@ def fig_pareto(out_dir: Path) -> None:
                    s=24 + 110 * np.sqrt(row["params"] / g["params"].max()),
                    color=FAMILY_COLOUR[family_of(arch)],
                    edgecolor=SURFACE, linewidth=RING_W, zorder=3)
-        # Split the labels into two columns -- front models to the right, the rest
-        # to the left -- so that clusters of similar models do not overprint each
-        # other. Which side a label sits on is itself informative.
-        on_front = arch in front_names
-        ax.annotate(PRETTY_ARCH.get(arch, arch), (row["throughput"], row["accuracy"]),
-                    textcoords="offset points",
-                    xytext=(8, 2) if on_front else (-8, 2),
-                    ha="left" if on_front else "right",
-                    fontsize=6.5, color=INK if on_front else INK_SECOND)
 
     ax.set_xscale("log")
     ax.margins(x=0.28)
     _tidy(ax, "inference throughput (images/s, one H100)", "test accuracy")
+    # Front models are named in full ink and get first choice of label position, since
+    # they are the ones a reader looks for; the rest are recessive. Half the field sits
+    # within a factor of two in throughput and a fifth of a point in accuracy, so the
+    # positions have to be decluttered rather than assigned from a fixed cycle.
+    ordered_labels = ([a for a in front_names]
+                      + [a for a in g.sort_values("accuracy", ascending=False).index
+                         if a not in front_names])
+    _place_labels(fig, ax, [(g.loc[a, "throughput"], g.loc[a, "accuracy"],
+                             PRETTY_ARCH.get(a, a),
+                             INK if a in front_names else INK_SECOND)
+                            for a in ordered_labels])
     handles = [plt.Line2D([], [], marker="o", ls="", ms=6, color=c,
                           markeredgecolor=SURFACE, markeredgewidth=RING_W,
                           label=PRETTY_FAMILY[f])
@@ -629,29 +703,101 @@ def fig_cross_survey(out_dir: Path) -> None:
     ycol = "decals_balanced_accuracy_tuned" if "decals_balanced_accuracy_tuned" in sub \
         else "decals_balanced_accuracy"
 
-    fig, ax = plt.subplots(figsize=(5.0, 3.6))
-    for mode, marker in (("hard", "s"), ("soft", "o")):
-        part = sub[sub["label_mode"] == mode]
-        if part.empty:
-            continue
-        g = part.groupby("arch")[[xcol, ycol]].mean()
-        ax.scatter(g[xcol], g[ycol], marker=marker, s=34, color=MODE_COLOUR[mode],
-                   edgecolor=SURFACE, linewidth=RING_W, label=f"{mode} labels",
-                   zorder=3)
-        if mode == "soft":
-            for arch, row in g.iterrows():
-                ax.annotate(PRETTY_ARCH.get(arch, arch), (row[xcol], row[ycol]),
-                            textcoords="offset points", xytext=(6, -2), fontsize=6,
-                            color=INK_SECOND)
-    lo = float(min(sub[ycol].min(), sub[xcol].min())) - 0.02
-    hi = float(max(sub[ycol].max(), sub[xcol].max())) + 0.02
-    ax.plot([lo, hi], [lo, hi], lw=0.8, color=INK_MUTED, ls=(0, (4, 3)))
-    ax.annotate("no loss in transfer", (hi, hi), textcoords="offset points",
-                xytext=(-4, -12), ha="right", fontsize=6.5, color=INK_SECOND)
-    ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
-    _tidy(ax, "balanced accuracy on SDSS (Galaxy Zoo 2)",
-          "balanced accuracy on DECaLS (Galaxy10)")
-    ax.legend(loc="upper left", fontsize=7)
+    means = {mode: sub[sub["label_mode"] == mode].groupby("arch")[[xcol, ycol]].mean()
+             for mode in ("hard", "soft") if (sub["label_mode"] == mode).any()}
+    if not means:
+        print("skipping fig_cross_survey: no runs")
+        return
+
+    # The quantity of interest is the paired difference, so plot it directly. A
+    # source-versus-target scatter against the diagonal is the conventional form, but
+    # it does not survive this distribution: ten of the twelve architectures sit
+    # within two points of no change -- six of them on the gaining side -- while two
+    # lose between three and thirty-five, so any shared square range collapses the
+    # ten into an illegible corner. Penalty per architecture puts each on its own
+    # labelled row, and because the values leave a genuine empty gap of fifteen
+    # points the x axis is broken across that gap, drawn as such, so the near-zero
+    # region and the collapse are both readable at their own scale. Absolute levels
+    # are in the accompanying table.
+    penalty = {mode: ((g[xcol] - g[ycol]) * 100).rename("penalty")
+               for mode, g in means.items()}
+    order = (penalty.get("soft", next(iter(penalty.values())))).sort_values()
+    y = {arch: k for k, arch in enumerate(order.index)}
+    values = np.concatenate([s.to_numpy() for s in penalty.values()])
+
+    # Where to break: the upper Tukey fence, so the left panel holds the bulk at its
+    # own scale and only genuine outliers go to the right panel. A fixed rule rather
+    # than the widest observed gap, because the widest gap moves with one architecture
+    # and would silently change the figure's meaning between runs.
+    ordered_vals = np.sort(values)
+    q1, q3 = np.percentile(values, [25, 75])
+    fence = q3 + 1.5 * (q3 - q1)
+    outliers = ordered_vals[ordered_vals > fence]
+    split = len(outliers) > 0 and len(outliers) < len(values) / 3
+    if split:
+        bulk_max = float(ordered_vals[ordered_vals <= fence].max())
+        break_lo, break_hi = bulk_max, float(outliers.min())
+    ratios = [3, 1] if split else [1]
+    fig, axs = plt.subplots(1, len(ratios), figsize=(5.8, 3.9), sharey=True,
+                            gridspec_kw={"width_ratios": ratios, "wspace": 0.06},
+                            layout="constrained")
+    axs = np.atleast_1d(axs)
+
+    for ax in axs:
+        if len(penalty) == 2:      # hairline pairing the two modes of one architecture
+            a, b = penalty.values()
+            for arch, row in y.items():
+                if arch in a.index and arch in b.index:
+                    ax.plot([float(a[arch]), float(b[arch])], [row, row], lw=0.7,
+                            color=GRID, zorder=1)
+        for mode, marker in (("hard", "s"), ("soft", "o")):
+            series = penalty.get(mode)
+            if series is None:
+                continue
+            keep = [a for a in series.index if a in y]
+            ax.scatter([float(series[a]) for a in keep], [y[a] for a in keep],
+                       marker=marker, s=34, color=MODE_COLOUR[mode],
+                       edgecolor=SURFACE, linewidth=RING_W, label=f"{mode} labels",
+                       zorder=3)
+        ax.axvline(0.0, lw=0.8, color=INK_MUTED, zorder=2)
+        ax.grid(axis="y", visible=False)
+        ax.set_ylim(-0.7, len(y) - 0.3)
+
+    if split:
+        left_pad = 0.10 * (break_lo - ordered_vals[0])
+        right_pad = 0.12 * max(1.0, ordered_vals[-1] - break_hi)
+        axs[0].set_xlim(ordered_vals[0] - left_pad, break_lo + left_pad)
+        axs[1].set_xlim(break_hi - right_pad, ordered_vals[-1] + right_pad)
+        axs[0].spines["right"].set_visible(False)
+        axs[1].spines["left"].set_visible(False)
+        axs[1].tick_params(axis="y", length=0)
+        # the smallest outlier sits at the right panel's left edge, where the automatic
+        # locator puts no tick, so it gets one: otherwise that marker has no scale
+        auto = [t for t in axs[1].get_xticks() if break_hi + right_pad < t
+                <= ordered_vals[-1] + right_pad]
+        axs[1].set_xticks(sorted({round(break_hi)} | set(auto)))
+        for ax, xpos in ((axs[0], 1.0), (axs[1], 0.0)):   # the break marks
+            ax.plot([xpos, xpos], [0, 1], transform=ax.transAxes, clip_on=False,
+                    marker=[(-1, -2.2), (1, 2.2)], ms=5, mew=0.9,
+                    color=AXIS, ls="none", zorder=5)
+        axs[0].set_title(f"{len(values) - len(outliers)} of {len(values)} runs",
+                         fontsize=6.5, color=INK_SECOND, loc="left")
+        axs[1].set_title("outliers, own scale", fontsize=6.5, color=INK_SECOND,
+                         loc="left")
+
+    axs[0].set_yticks(range(len(y)))
+    axs[0].set_yticklabels([PRETTY_ARCH.get(a, a) for a in order.index], fontsize=7)
+    axs[0].annotate("gains", (0.0, -0.55), textcoords="offset points",
+                    xytext=(-4, 0), ha="right", va="center", fontsize=6.5,
+                    color=INK_MUTED)
+    axs[0].annotate("loses", (0.0, -0.55), textcoords="offset points",
+                    xytext=(4, 0), ha="left", va="center", fontsize=6.5,
+                    color=INK_MUTED)
+    axs[0].legend(loc="upper left", fontsize=7)
+    for ax in axs:
+        _tidy(ax)
+    fig.supxlabel("balanced accuracy lost in transfer (percentage points)",
+                  fontsize=9, color=INK)
     _save(fig, out_dir, "fig_cross_survey")
 
 
@@ -668,7 +814,7 @@ def fig_faithfulness(out_dir: Path) -> None:
     merged = xai.merge(runs[["run_id", "test_accuracy"]], on="run_id", how="left")
     excess = "background_excess" if "background_excess" in merged else "background_reliance"
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.6))
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.8), layout="constrained")
 
     ax = axes[0]
     for family, colour in FAMILY_COLOUR.items():
@@ -684,12 +830,15 @@ def fig_faithfulness(out_dir: Path) -> None:
     ranked = merged.dropna(subset=[excess]).sort_values(excess)
     named = pd.concat([ranked.head(2), ranked.tail(2),
                        ranked[ranked[excess] > 0]]).drop_duplicates("run_id")
+    # four offsets rather than two: the named runs include near-duplicate pairs -- the
+    # same architecture under both label modes -- which two alternating offsets still
+    # print on top of each other
+    corners = ((7, 4, "left"), (-7, -10, "right"), (7, -10, "left"), (-7, 4, "right"))
     for k, (_, row) in enumerate(named.iterrows()):
+        dx, dy, ha = corners[k % len(corners)]
         ax.annotate(f"{PRETTY_ARCH.get(row['arch'], row['arch'])} ({row['label_mode']})",
                     (row["test_accuracy"], row[excess]), textcoords="offset points",
-                    xytext=(7, 3) if k % 2 == 0 else (-7, -9),
-                    ha="left" if k % 2 == 0 else "right",
-                    fontsize=6.5, color=INK)
+                    xytext=(dx, dy), ha=ha, fontsize=6.5, color=INK)
     ax.axhline(0.0, lw=0.8, color=INK_MUTED, ls=(0, (4, 3)))
     ax.annotate("a uniform map scores here", (ax.get_xlim()[0], 0.0),
                 textcoords="offset points", xytext=(3, 3), fontsize=6.5,
@@ -718,15 +867,30 @@ def fig_faithfulness(out_dir: Path) -> None:
         ax.barh(y + (h + gap) / 2, panel[lo_col], height=h, color=ORDINAL[1],
                 label="volunteers disagreed")
         ax.axvline(0.0, lw=0.8, color=INK_MUTED)
+        # Nearly every value is negative, so the bars run left from zero and the
+        # axis-edge tick labels end up underneath the bar ends. The names therefore go
+        # in the free space to the right of the longest positive bar, which is a column
+        # no bar can reach whatever the values turn out to be.
         ax.set_yticks(y)
-        ax.set_yticklabels([PRETTY_ARCH.get(a, a) for a in panel["arch"]], fontsize=6.5)
+        ax.tick_params(axis="y", labelleft=False, length=0)
+        low = float(min(panel[hi_col].min(), panel[lo_col].min(), 0.0))
+        high = float(max(panel[hi_col].max(), panel[lo_col].max(), 0.0))
+        span = high - low
+        label_x = high + 0.03 * span
+        for row_y, arch in zip(y, panel["arch"]):
+            ax.annotate(PRETTY_ARCH.get(arch, arch), (label_x, row_y),
+                        va="center", ha="left", fontsize=6.5, color=INK_SECOND)
+        ax.set_xlim(low - 0.04 * span, label_x + 0.40 * span)
         _tidy(ax, "excess over uniform", None, "(b) soft-label models, by agreement")
-        ax.legend(loc="lower right", bbox_to_anchor=(1, 1.0), ncol=2, fontsize=7)
+        ax.spines["left"].set_visible(False)
+        _headroom(ax, 0.30)
+        ax.legend(loc="upper right", ncol=1, fontsize=7)
 
     # Each panel keeps its own legend -- the two encode different things, and one
-    # shared key would have to claim a colour means the same in both -- and both sit
-    # in the title row, where no data can collide with them whatever the values.
-    axes[0].legend(loc="lower right", bbox_to_anchor=(1, 1.0), ncol=3, fontsize=7)
+    # shared key would have to claim a colour means the same in both. Both sit inside
+    # their axes, in headroom opened for them, so neither can reach the panel titles.
+    _headroom(axes[0], 0.26)
+    axes[0].legend(loc="upper center", ncol=3, fontsize=7)
     _save(fig, out_dir, "fig_faithfulness")
 
 

@@ -557,6 +557,24 @@ def macros(runs: pd.DataFrame) -> str:
                 f"{100 * best['decals_balanced_accuracy_tuned']:.1f}")
             cmd("decalsAucDrop", f"{100 * cross['auc_drop'].mean():.1f}")
             cmd("decalsThresholdMedian", f"{cross['val_threshold'].median():.2f}")
+            # The mean is the wrong summary here and saying so is part of the result:
+            # the distribution is bimodal, most architectures transfer at no cost and
+            # a couple collapse, so the mean sits in a region where almost nothing
+            # lands. Report the median, the count that gain, and the bulk's range.
+            drop = 100 * cross["balanced_accuracy_drop_tuned"]
+            cmd("decalsEvalCount", f"{len(drop)}")
+            cmd("decalsDropMedian", f"{drop.median():.2f}")
+            cmd("decalsGainCount", f"{int((drop < 0).sum())} of {len(drop)}")
+            q1, q3 = np.percentile(drop, [25, 75])
+            bulk = drop[drop <= q3 + 1.5 * (q3 - q1)]
+            cmd("decalsBulkCount", f"{len(bulk)}")
+            cmd("decalsBulkMax", f"{bulk.max():.1f}")
+            collapse = drop[drop > q3 + 1.5 * (q3 - q1)]
+            cmd("decalsCollapseCount", f"{len(collapse)}")
+            cmd("decalsCollapseMin", f"{collapse.min():.0f}" if len(collapse) else "--")
+            cmd("decalsCollapseMax", f"{collapse.max():.0f}" if len(collapse) else "--")
+            worst = cross.loc[cross["balanced_accuracy_drop_tuned"].idxmax()]
+            cmd("decalsWorstArch", PRETTY_ARCH.get(worst["arch"], str(worst["arch"])))
         if not cross.empty:
             cmd("decalsDropMean", f"{100 * cross['accuracy_drop'].mean():.1f}")
             best = cross.loc[cross["decals_accuracy"].idxmax()]
@@ -662,6 +680,8 @@ MACRO_NAMES = (
     "pretrainGain pretrainGainMax frozenPenalty "
     "decalsDropMean decalsBestArch decalsBestAccuracy decalsDropSoft decalsDropHard "
     "decalsDropTuned decalsBestBalanced decalsAucDrop decalsThresholdMedian "
+    "decalsEvalCount decalsDropMedian decalsGainCount decalsBulkCount decalsBulkMax "
+    "decalsCollapseCount decalsCollapseMin decalsCollapseMax decalsWorstArch "
     "tunedThresholdMedian softAccGainTuned "
     "bkgRelianceMean bkgRelianceLow bkgRelianceHigh bkgRelianceCNN bkgRelianceViT "
     "bkgExcessMean bkgExcessHigh bkgExcessLow bkgExcessCNN bkgExcessViT "
