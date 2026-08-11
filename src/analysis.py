@@ -461,6 +461,10 @@ def learning_curve_reach(runs: pd.DataFrame, ceiling: dict,
         train_size = int(read_json(meta)["split_counts"]["train"]) \
             if meta.exists() else 0
 
+    # accept either the raw-fraction block or the whole ceiling record, since callers
+    # hold the latter; with the wrong one this silently returns nothing at all
+    if "bayes_accuracy" not in ceiling and "raw" in ceiling:
+        ceiling = ceiling["raw"]
     target = ceiling.get("bayes_accuracy")
     sub = runs[(runs["policy"] == "d4") & (runs["finetune"] == "full")
                & (runs["loss"] == "bce")
@@ -468,6 +472,15 @@ def learning_curve_reach(runs: pd.DataFrame, ceiling: dict,
                & (runs["label_mode"].isin(["hard", "soft"]))]
     if "pretrained" in sub:
         sub = sub[sub["pretrained"].fillna(True).astype(bool)]
+    # train_size == 0 is the sentinel for "the whole training split", so it has to be
+    # resolved to the real count. If it cannot be, the full-split runs must be dropped
+    # rather than left at zero: log10(0) would silently move the last three points of
+    # every curve to the subset runs and return a slope and a gap that look entirely
+    # reasonable and are wrong.
+    if not train_size:
+        print("learning_curve_reach: no training-set count available, so the "
+              "full-split runs are excluded from the curves")
+        sub = sub[sub["train_size"] > 0]
     sub = sub.assign(n=sub["train_size"].replace(0, train_size))
 
     curves = {}
