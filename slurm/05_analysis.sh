@@ -29,6 +29,9 @@ python -m src.analysis
 python -m src.stats
 python -m src.figures --out "$PAPER"
 python -m src.tables --out "$PAPER"
+# and into the repository, so the results can be committed from here rather than
+# copied off the cluster by hand
+python -m src.publish
 
 echo
 echo "paper assets in $PAPER"
