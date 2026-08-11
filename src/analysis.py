@@ -441,6 +441,70 @@ def cross_survey(runs: pd.DataFrame) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------- #
 
+def learning_curve_reach(runs: pd.DataFrame, ceiling: dict,
+                         train_size: int | None = None) -> dict:
+    """How much more annotation the learning curves say the ceiling would cost.
+
+    The honest reading of the curves is not that they have flattened -- they have
+    not -- but that their slope is shallow enough for the remaining gap to be
+    unaffordable. Accuracy grows roughly linearly in the logarithm of the training
+    set size, so we fit that slope over the last three points of each curve and ask
+    how many decades of additional data the gap to the vote-model ceiling implies.
+    The answer is the quantity worth reporting: not "more data will not help" but
+    "the data that would help does not exist".
+
+    Fitting the last three points rather than all of them matters. The early part of
+    a learning curve is steeper, and including it would flatter the extrapolation.
+    """
+    if train_size is None:
+        meta = config.ARRAYS / "gz2_meta.json"
+        train_size = int(read_json(meta)["split_counts"]["train"]) \
+            if meta.exists() else 0
+
+    target = ceiling.get("bayes_accuracy")
+    sub = runs[(runs["policy"] == "d4") & (runs["finetune"] == "full")
+               & (runs["loss"] == "bce")
+               & (~runs["orientation_pooled"].astype(bool))
+               & (runs["label_mode"].isin(["hard", "soft"]))]
+    if "pretrained" in sub:
+        sub = sub[sub["pretrained"].fillna(True).astype(bool)]
+    sub = sub.assign(n=sub["train_size"].replace(0, train_size))
+
+    curves = {}
+    for (arch, mode), group in sub.groupby(["arch", "label_mode"]):
+        m = group.groupby("n")["test_accuracy"].mean().sort_index()
+        if len(m) < 3 or target is None:
+            continue
+        x = np.log10(m.index.to_numpy(dtype=float))
+        y = m.to_numpy()
+        slope = float(np.polyfit(x[-3:], y[-3:], 1)[0])
+        gap = float(target - y[-1])
+        decades = gap / slope if slope > 0 else float("inf")
+        curves[f"{arch}/{mode}"] = {
+            "final_accuracy": float(y[-1]),
+            "gap_to_ceiling": gap,
+            "slope_per_decade": slope,
+            "decades_needed": decades,
+            "galaxies_needed": float(m.index[-1] * 10 ** decades),
+            "still_rising": bool(slope > 0.002),
+        }
+
+    if not curves:
+        return {}
+    finite = [c for c in curves.values() if np.isfinite(c["decades_needed"])]
+    return {
+        "per_curve": curves,
+        "n_curves": len(curves),
+        "n_still_rising": int(sum(c["still_rising"] for c in curves.values())),
+        "mean_slope_per_decade": float(np.mean([c["slope_per_decade"]
+                                               for c in curves.values()])),
+        "mean_gap_to_ceiling": float(np.mean([c["gap_to_ceiling"]
+                                              for c in curves.values()])),
+        "galaxies_needed_min": float(min(c["galaxies_needed"] for c in finite)) if finite else None,
+        "galaxies_needed_max": float(max(c["galaxies_needed"] for c in finite)) if finite else None,
+    }
+
+
 def summarise(runs: pd.DataFrame, agreement: pd.DataFrame, ceiling: dict,
               selective: pd.DataFrame) -> dict:
     """The numbers that go in the abstract, pulled from the tables above."""
@@ -468,6 +532,7 @@ def summarise(runs: pd.DataFrame, agreement: pd.DataFrame, ceiling: dict,
         "vote_ceiling": ceiling,
         "best_hard": best(ref, "hard"),
         "best_soft": best(ref, "soft"),
+        "learning_curve": learning_curve_reach(runs, ceiling),
     }
 
     if not agreement.empty:

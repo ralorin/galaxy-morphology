@@ -2,3 +2,12 @@
 *.sh text eol=lf
 *.py text eol=lf
 *.csv text eol=lf
+
+# results/ holds figures, so say outright that these are binary rather than leaving
+# it to the heuristic behind `text=auto`. A false positive there would rewrite line
+# endings inside a PDF and corrupt it silently.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.npy binary
+*.h5 binary

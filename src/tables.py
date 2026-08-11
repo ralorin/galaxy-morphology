@@ -626,6 +626,16 @@ def macros(runs: pd.DataFrame) -> str:
             cmd("softVsHardEceP", "<0.001" if p < 1e-3 else f"{p:.3f}")
             cmd("softVsHardPairs", str(int(row["n_pairs"].iloc[0])))
 
+    # what the learning curves say the remaining gap would cost in annotation
+    curve = summary.get("learning_curve") or {}
+    if curve:
+        cmd("curveSlope", f"{100 * curve['mean_slope_per_decade']:.1f}")
+        cmd("curveGap", f"{100 * curve['mean_gap_to_ceiling']:.1f}")
+        cmd("curveStillRising", f"{curve['n_still_rising']} of {curve['n_curves']}")
+        if curve.get("galaxies_needed_min"):
+            cmd("curveGalaxiesLow", f"{curve['galaxies_needed_min'] / 1e6:.1f}")
+            cmd("curveGalaxiesHigh", f"{curve['galaxies_needed_max'] / 1e6:.0f}")
+
     cmd("nRuns", str(int(summary.get("n_runs", len(runs)))))
     cmd("nArchitectures", str(int(runs["arch"].nunique())))
     return "\n".join(out) + "\n"
@@ -658,7 +668,9 @@ MACRO_NAMES = (
     "bkgExcessSoftGain bkgExcessSoftBetter footprintFraction "
     "faithfulnessMean faithfulnessBest "
     "friedmanP friedmanArchitectures friedmanSeeds nemenyiCD "
-    "softVsHardEceP softVsHardPairs nRuns nArchitectures"
+    "softVsHardEceP softVsHardPairs "
+    "curveSlope curveGap curveStillRising curveGalaxiesLow curveGalaxiesHigh "
+    "nRuns nArchitectures"
 ).split()
 
 PLACEHOLDER = r"\textcolor{red}{??}"
