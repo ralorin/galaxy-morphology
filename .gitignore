@@ -22,6 +22,14 @@ work/
 # megabytes and regenerable from the checkpoints.
 results/**/predictions_*.csv
 
+# The manuscript is convenient to keep next to the code that generates its numbers,
+# but it is not part of the code and does not belong in this repository. Its
+# figures and tables are archived under results/ by `src/publish.py`, so the exact
+# assets the paper uses are versioned even though the paper itself is not.
+paper5/
+paper*/
+manuscript/
+
 # slurm output
 logs/*.out
 logs/*.err

@@ -113,8 +113,16 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--paper", type=Path, default=None,
                     help="directory holding the manuscript's figures/ and tables/, "
-                         "so that the exact assets it uses are archived too")
+                         "so that the exact assets it uses are archived too. "
+                         "Defaults to ./paper5 if that exists.")
     args = ap.parse_args()
+
+    # The manuscript is often kept beside the code for convenience. It is ignored by
+    # git (see .gitignore), but its generated assets are worth archiving, so pick it
+    # up automatically when it is there.
+    if args.paper is None and (REPO / "paper5").is_dir():
+        args.paper = REPO / "paper5"
+        print(f"found the manuscript at {args.paper}")
 
     print(f"copying from {config.RESULTS}")
     counts = {
