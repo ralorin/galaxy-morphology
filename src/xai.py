@@ -40,11 +40,19 @@ the naive versions produced numbers that turned out to measure something else.
 The curves track the predicted class rather than the positive class, and they are
 normalised. Three of every four galaxies here are smooth, and for those the
 probability of "featured" rises as evidence is destroyed; a curve averaged over both
-classes would run in opposite directions for each and mean nothing. The
-normalisation matters for a second reason: a model trained on vote fractions has
-probabilities compressed towards one half, so its curves start lower and its
-unnormalised areas are smaller for reasons that have nothing to do with the quality
-of the saliency map.
+classes would run in opposite directions for each and mean nothing. Normalising by
+the intact score then equalises where the curves start, which they otherwise do not
+when one model is more confident than another.
+
+That correction is partial and the limit is worth knowing. It fixes the top of the
+curve but not the bottom: a model whose probabilities are compressed towards one
+half has less distance to fall before it reaches the fully-perturbed floor, so its
+deletion area stays higher for reasons of output scale rather than of attribution.
+The practical consequence is that deletion and insertion compare architectures
+cleanly *within* a label mode and should not be used to compare the label modes
+against each other. Background excess has no such problem -- it is computed from a
+map normalised to [0,1] and never touches the model's output -- and is where the
+label-mode comparison belongs.
 
 Background reliance is quoted against a null. The raw share of mass outside the
 galaxy depends on how much of the frame the galaxy fills, and compact smooth
