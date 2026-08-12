@@ -1,34 +1,17 @@
-"""Every figure in the paper, drawn from the tables in $GZM_WORK/results.
+"""Paper figures, drawn from the tables in $GZM_WORK/results.
 
     python -m src.figures --out /path/to/paper5
     python -m src.figures --out /path/to/paper5 --only agreement curve
 
-Vector PDF, one file per figure, Type-1 fonts, no titles inside the axes (the
-caption carries that). A figure whose inputs are missing is skipped with a note
-rather than crashing the whole run, so this can be called while the sweep is still
-going.
+Vector PDF, one file each, embedded fonts. Missing inputs skip a figure with a note
+instead of killing the run, so this is safe to call while the sweep is going.
 
-On the visual conventions
--------------------------
-Three categorical colours, assigned to entities in a fixed order and never cycled:
-they carry either the architecture family or the training target, and which one is
-always named in the legend. Three is not an accident. It is the largest set that
-clears the colour-vision-deficiency and normal-vision separation floors on a white
-surface when every pair can appear together, which is the case in the scatter
-plots; a fourth hue would fail. Wherever a figure needs more distinctions than
-that, it gets more panels instead of more colours.
-
-The rest of the ink is deliberately quiet: hairline solid gridlines one step off
-the surface, axis text in a muted grey, and no colour on any text at all. A series
-is identified by a coloured mark beside a label, never by colouring the label,
-because the lightest of the three hues is not legible as text. That hue also sits
-below 3:1 against white, so wherever it appears it carries a direct label as well
-as a legend entry, and every value in every figure also exists in one of the
-tables.
-
-There are no dual-axis plots here. Where two quantities on different scales matter
--- accuracy and the share of the test set, in the agreement figure -- they get
-stacked panels sharing an x-axis rather than two y-scales on one frame.
+Colour rules, so they do not drift: three hues, fixed order, never cycled. They mean
+architecture family or training target and the legend always says which. Three is the
+most that stays distinguishable under colour-blind simulation when any pair can meet,
+which happens in the scatter plots. More distinctions go in more panels. The green is
+too light to read as text and too low-contrast to stand alone, so anything drawn in it
+also gets a direct label. No dual y-axes anywhere.
 """
 
 from __future__ import annotations
@@ -52,12 +35,9 @@ from src.tables import PRETTY_POLICY, reference
 # Palette
 # --------------------------------------------------------------------------- #
 
-# Categorical slots, in fixed order. Validated as a set on a white surface with
-# every pair in play: worst CVD separation 9.2, worst normal-vision separation
-# 24.0, both clear of their floors.
-SLOT = ("#2a78d6", "#eb6834", "#1baf7a")   # blue, orange, aqua
+# checked under deuteranopia and protanopia simulation with every pair together
+SLOT = ("#2a78d6", "#eb6834", "#1baf7a")   # blue, orange, green
 
-# Chart chrome. Nothing here competes with the data.
 SURFACE = "#ffffff"
 INK = "#0b0b0b"
 INK_SECOND = "#52514e"
@@ -65,29 +45,23 @@ INK_MUTED = "#898781"
 GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 
-# Entities keep their colour across every figure in which they appear.
+# an entity keeps its colour in every figure it appears in
 FAMILY_COLOUR = {"custom": SLOT[0], "cnn": SLOT[1], "transformer": SLOT[2]}
 MODE_COLOUR = {"hard": SLOT[0], "soft": SLOT[1],
                "hard_conf": SLOT[2], "soft_w": SLOT[2]}
 PROBE_COLOUR = {"resnet50": SLOT[0], "convnext_tiny": SLOT[1], "vit_small": SLOT[2]}
 
-# The one hue whose contrast against white is below 3:1; anything drawn in it also
-# gets a direct label, which is the documented relief.
-NEEDS_LABEL = SLOT[2]
+NEEDS_LABEL = SLOT[2]      # too low-contrast on white to stand without a label
 
-# Two steps of the blue ramp, for the one contrast in this paper that is ordered
-# rather than categorical: galaxies the volunteers agreed on against galaxies they
-# did not. Using a second pair of categorical hues there would make blue mean an
-# architecture family in one panel and an agreement level in the next; a one-hue
-# ramp says "two levels of the same thing", which is what it is. The light step is
-# the ordinal floor for a white surface.
+# agreed against contested is an ordered contrast, not a categorical one, so it uses
+# two steps of one hue rather than two more categorical colours
 ORDINAL = ("#86b6ef", "#1c5cab")
 
-LINE_W = 1.5          # 2 px
-MARKER = 5.0          # >= 8 px including its ring
-RING_W = 1.2          # 2 px of surface around a marker
-FILL_ALPHA = 0.10     # area washes, never a saturated block
-BAR_MAX = 0.24        # bars stay thin; the leftover band is air
+LINE_W = 1.5
+MARKER = 5.0
+RING_W = 1.2
+FILL_ALPHA = 0.10
+BAR_MAX = 0.24
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -156,8 +130,8 @@ def _place_labels(fig, ax, items, fontsize=6.5, pad=3.0, marker_radius=6.0):
     spread out and fail as soon as several land close together, which is exactly what
     happens when half a dozen architectures perform alike. For each point in turn this
     tries six positions around the marker and takes the first that collides with
-    nothing already on the canvas -- earlier labels and every marker, including the
-    ones not yet labelled -- falling back to the first position if all six collide.
+    nothing already on the canvas, meaning earlier labels and every marker including
+    the ones not yet labelled, falling back to the first position if all six collide.
     The order is the caller's, so the most important labels choose first.
 
     items: iterable of (x, y, text, colour) in data coordinates.
@@ -247,8 +221,8 @@ def fig_dataset(out_dir: Path) -> None:
     table = load_table("gz2")
     images = np.load(config.ARRAYS / "gz2_images.npy", mmap_mode="r")
 
-    fig = plt.figure(figsize=(7.2, 4.4))
-    gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.85], hspace=0.5, wspace=0.32)
+    fig = plt.figure(figsize=(7.2, 7.0))
+    gs = fig.add_gridspec(2, 3, height_ratios=[0.62, 1.0], hspace=0.34, wspace=0.32)
 
     # one series per panel, so no legend: the axis label says what is plotted
     ax = fig.add_subplot(gs[0, 0])
@@ -258,12 +232,11 @@ def fig_dataset(out_dir: Path) -> None:
     ax = fig.add_subplot(gs[0, 1])
     ax.hist(table["agreement"], bins=50, color=SLOT[0])
     ax.axvline(0.6, color=INK_MUTED, lw=0.8)
-    # the bars are tall right where the line falls, so the label needs a surface
-    # patch behind it or it reads as part of the histogram
+    # the histogram rises steeply to the right of the threshold, so the label goes on
+    # the left of the line where the bars are low
     ax.annotate("confident\nthreshold", xy=(0.6, ax.get_ylim()[1]),
-                xytext=(3, -1), textcoords="offset points", fontsize=6.5,
-                color=INK_SECOND, va="top", ha="left",
-                bbox=dict(facecolor=SURFACE, edgecolor="none", pad=1.0))
+                xytext=(-4, -1), textcoords="offset points", fontsize=6.5,
+                color=INK_SECOND, va="top", ha="right")
     _tidy(ax, r"agreement $|2p-1|$", "galaxies", "(b) how much they agreed")
 
     ax = fig.add_subplot(gs[0, 2])
@@ -282,26 +255,39 @@ def fig_dataset(out_dir: Path) -> None:
     _tidy(ax, "agreement bin (lower edge)", None, "(c) bins used throughout")
     ax.spines["left"].set_visible(False)   # no y scale, so no y spine
 
+    # A single example per bin invited the reading that the contested galaxies are
+    # simply odd objects. Three of them, drawn independently, show that the whole bin
+    # looks like that, which is the claim the rest of the paper rests on. Columns are
+    # agreement bins and rows are independent draws, so reading down a column shows
+    # the variety inside one bin and reading across a row shows the progression.
     rng = np.random.default_rng(config.SEED)
-    picks = []
+    n_rows = 3
+    columns = []
     for b in range(len(edges) - 1):
         sub = table[(table["agreement"] >= edges[b])
                     & (table["agreement"] < edges[b + 1] + 1e-9)]
         if len(sub):
-            picks.append(sub.iloc[rng.integers(len(sub))])
-    inner = gs[1, :].subgridspec(1, len(picks), wspace=0.08)
-    for k, row in enumerate(picks):
-        ax = fig.add_subplot(inner[0, k])
-        ax.imshow(np.asarray(images[int(row["row"])]))
-        ax.set_xticks([]); ax.set_yticks([]); ax.grid(False)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        # the strip runs left to right in order of increasing agreement, which is
-        # invisible if only p is printed: p=0.49 and p=1.00 look unrelated until
-        # you see that a runs 0.02 to 1.00 across the row
-        ax.set_title(f"$a$={row['agreement']:.2f}\n"
-                     f"$p$={row['p_featured']:.2f}, $N$={int(row['votes'])}",
-                     fontsize=6.5, color=INK_SECOND, linespacing=1.4)
+            take = rng.choice(len(sub), size=min(n_rows, len(sub)), replace=False)
+            columns.append((b, sub.iloc[take]))
+    inner = gs[1, :].subgridspec(n_rows, len(columns), wspace=0.06, hspace=0.30)
+    for col, (b, chosen) in enumerate(columns):
+        for r in range(n_rows):
+            ax = fig.add_subplot(inner[r, col])
+            ax.set_xticks([]); ax.set_yticks([]); ax.grid(False)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            if r >= len(chosen):
+                ax.set_visible(False)
+                continue
+            row = chosen.iloc[r]
+            ax.imshow(np.asarray(images[int(row["row"])]))
+            ax.set_title(f"$p$={row['p_featured']:.2f}", fontsize=6,
+                         color=INK_MUTED, pad=2)
+            if r == 0:      # the bin heading sits above the first row of its column
+                ax.annotate(f"$a \\in [{edges[b]:.1f}, {edges[b + 1]:.1f})$",
+                            (0.5, 1.0), xycoords="axes fraction",
+                            textcoords="offset points", xytext=(0, 16),
+                            ha="center", fontsize=6.5, color=INK_SECOND)
     _save(fig, out_dir, "fig_dataset")
 
 
@@ -317,8 +303,7 @@ def fig_agreement(out_dir: Path) -> None:
     ceiling = read_json(config.RESULTS / "ceiling.json")["raw"] \
         if (config.RESULTS / "ceiling.json").exists() else None
 
-    sub = agr[(agr["policy"] == "d4") & (agr["finetune"] == "full")
-              & (agr["train_size"].fillna(0) == 0)]
+    sub = reference(agr)
     if sub.empty:
         print("skipping fig_agreement: no reference runs")
         return
@@ -352,7 +337,7 @@ def fig_agreement(out_dir: Path) -> None:
             # from its line.
             if colour == NEEDS_LABEL and col == 1:
                 ax.annotate(PRETTY_FAMILY[family], (x[0], y[0]),
-                            textcoords="offset points", xytext=(6, 6),
+                            textcoords="offset points", xytext=(14, 5),
                             ha="left", fontsize=6.5, color=INK_SECOND)
 
         if "majority_baseline" in part:
@@ -360,7 +345,20 @@ def fig_agreement(out_dir: Path) -> None:
             ax.plot(_bin_centres(base.index), base.to_numpy(), lw=1.0,
                     color=INK_MUTED, label="majority baseline in bin")
 
-        if ceiling:
+        # The ceiling is a property of the vote distribution, and the bins are cut on
+        # the vote distribution, so a single global value drawn straight across is the
+        # wrong comparison: the near-unanimous bin rises above it and reads as a
+        # violation, the contested bin sits far below it and reads as headroom. Draw
+        # it per bin where that is available and keep the global value only as a
+        # fallback for older result files.
+        per_bin = (ceiling or {}).get("by_agreement_bin") or {}
+        if per_bin:
+            bins = sorted(int(b) for b in per_bin)
+            xs = _bin_centres(pd.Index(bins))
+            ys = [per_bin[str(b)]["bayes_accuracy"] for b in bins]
+            ax.plot(xs, ys, lw=1.0, color=INK_MUTED, ls=(0, (4, 3)),
+                    label=r"$A^\star$ in bin")
+        elif ceiling:
             ax.axhline(ceiling["bayes_accuracy"], lw=0.8, color=INK_MUTED, ls=(0, (4, 3)))
             ax.annotate(r"$A^\star$", (0.02, ceiling["bayes_accuracy"]),
                         textcoords="offset points", xytext=(0, 3), fontsize=7,
@@ -406,8 +404,14 @@ def fig_agreement(out_dir: Path) -> None:
 
 def fig_curve(out_dir: Path) -> None:
     runs = _runs()
+    # train_size is the free axis, so everything else is pinned by hand, including
+    # the input size: without it the full-split end of each curve averages in the
+    # resolution-sweep runs and the curve is read against the ceiling from a point
+    # that no single configuration produced
+    native = runs["arch"].map(lambda a: REGISTRY[a].input_size if a in REGISTRY else None)
     sub = runs[(runs["policy"] == "d4") & (runs["finetune"] == "full")
-               & (runs["loss"] == "bce") & (~runs["orientation_pooled"])]
+               & (runs["loss"] == "bce") & (~runs["orientation_pooled"])
+               & (runs["pretrained"]) & (runs["size"] == native)]
     archs = [a for a in ("resnet50", "vit_small") if a in set(sub["arch"])]
     if not archs:
         print("skipping fig_curve: no runs")
@@ -460,7 +464,7 @@ def fig_calibration(out_dir: Path) -> None:
         print("skipping fig_calibration: calibration.csv missing")
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.1))
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 4.0), layout="constrained")
 
     ax = axes[0]
     ax.plot([0, 1], [0, 1], lw=0.8, color=INK_MUTED, ls=(0, (4, 3)),
@@ -487,6 +491,7 @@ def fig_calibration(out_dir: Path) -> None:
     archs = [a for a in ARCHITECTURES if a in set(ref["arch"])]
     x = np.arange(len(archs))
     gap, w = 0.04, 0.34
+    tallest = 0.0
     for k, (mode, column, label) in enumerate([
             ("hard", "test_ece", "hard, as measured"),
             ("soft", "test_ece", "soft, as measured")]):
@@ -496,6 +501,7 @@ def fig_calibration(out_dir: Path) -> None:
                 for a in archs]
         _bars(ax, x + (k - 0.5) * (w + gap), vals, MODE_COLOUR[mode], w,
               errs=errs, label=label)
+        tallest = max(tallest, float(np.nanmax(np.add(vals, np.nan_to_num(errs)))))
     if "test_ece_calibrated" in ref:
         vals = [ref[ref["arch"] == a]["test_ece_calibrated"].mean() for a in archs]
         ax.plot(x, vals, ls="none", marker="_", ms=12, color=INK,
@@ -504,6 +510,10 @@ def fig_calibration(out_dir: Path) -> None:
     ax.set_xticklabels([PRETTY_ARCH.get(a, a) for a in archs], rotation=60,
                        ha="right", fontsize=6.5)
     _tidy(ax, None, "expected calibration error", "(b) by architecture")
+    # The soft bars all sit near 0.14 and the three-entry legend needs a clear band
+    # above them. Rounding the limit up to the next fortieth leaves that band without
+    # cropping anything, whatever the values turn out to be.
+    ax.set_ylim(0, np.ceil(max(tallest, 0.14) / 0.025) * 0.025 + 0.05)
     ax.legend(loc="upper left", fontsize=7)
     _save(fig, out_dir, "fig_calibration")
 
@@ -532,26 +542,35 @@ def fig_selective(out_dir: Path) -> None:
         print("skipping fig_selective: no runs")
         return
 
-    fig, ax = plt.subplots(figsize=(4.8, 3.3))
+    curves = _optional("risk_coverage.csv")
+    if curves is None or curves.empty:
+        print("skipping fig_selective: risk_coverage.csv missing; rerun src.analysis "
+              "where the per-run predictions live")
+        return
+
+    fig, ax = plt.subplots(figsize=(5.2, 3.6), layout="constrained")
+    lo = 1.0
     for arch, mode, run_id in picks:
-        path = config.RUNS / run_id / "predictions_test.csv"
-        if not path.exists():
+        part = curves[curves["run_id"] == run_id].sort_values("coverage")
+        if part.empty:
             continue
-        pred = pd.read_csv(path)
-        cov, acc, _ = risk_coverage_curve(pred["label"], pred["prob"])
-        step = max(1, len(cov) // 2000)
-        ax.plot(cov[::step], acc[::step], lw=LINE_W,
+        ax.plot(part["coverage"], part["accuracy"], lw=LINE_W,
                 ls="-" if mode == "soft" else (0, (4, 2)),
                 color=FAMILY_COLOUR[family_of(arch)],
                 label=f"{PRETTY_ARCH.get(arch, arch)}, {mode}",
                 solid_capstyle="round")
+        lo = min(lo, float(part["accuracy"].min()))
     for target in (0.99, 0.95):
         ax.axhline(target, lw=0.7, color=INK_MUTED, ls=(0, (2, 3)))
-        ax.annotate(f"{target:.2f}", (0.055, target), textcoords="offset points",
-                    xytext=(0, 3), fontsize=6.5, color=INK_MUTED)
+        ax.annotate(f"{target:.2f}", (1.0, target), textcoords="offset points",
+                    xytext=(-2, 3), ha="right", fontsize=6.5, color=INK_MUTED)
     _tidy(ax, "coverage (fraction classified automatically)",
           "accuracy on the covered part")
+    # The whole trade-off happens in the top few points of the scale. Drawn from zero
+    # the curves are two flat lines against the top of the frame and the figure says
+    # nothing; the range has to be the range the data occupies.
     ax.set_xlim(0.05, 1.0)
+    ax.set_ylim(min(lo, 0.94) - 0.004, 1.002)
     ax.legend(loc="lower left", fontsize=7)
     _save(fig, out_dir, "fig_selective")
 
@@ -570,7 +589,7 @@ def fig_orientation(out_dir: Path) -> None:
         print("skipping fig_orientation: no runs")
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.1))
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.5), layout="constrained")
     policies = ["none", "flip", "d4", "d4_photo"]
     x = np.arange(len(policies))
     gap = 0.03
@@ -584,8 +603,7 @@ def fig_orientation(out_dir: Path) -> None:
                        & (~sub["orientation_pooled"])]
             vals.append(rows["test_accuracy"].mean() if not rows.empty else np.nan)
             errs.append(rows["test_accuracy"].std(ddof=1) if len(rows) > 1 else 0.0)
-        # one colour per architecture, never a shade of one colour: a lightness
-        # ramp on nominal categories double-encodes and fails the colour checks
+        # one colour per architecture, not shades of one: these are nominal
         _bars(axes[0], x + offset, vals, PROBE_COLOUR[arch], w, errs=errs,
               label=PRETTY_ARCH.get(arch, arch))
         if PROBE_COLOUR[arch] == NEEDS_LABEL and np.isfinite(vals[-1]):
@@ -594,22 +612,26 @@ def fig_orientation(out_dir: Path) -> None:
                              xytext=(0, 4), ha="center", fontsize=6.5,
                              color=INK_SECOND)
     axes[0].set_xticks(x)
-    axes[0].set_xticklabels([PRETTY_POLICY[p] for p in policies], rotation=15)
+    axes[0].set_xticklabels([PRETTY_POLICY[p] for p in policies], rotation=20,
+                            ha="right")
     _tidy(axes[0], None, "test accuracy", "(a) augmentation policy")
     finite = sub["test_accuracy"].dropna()
     if len(finite):
         axes[0].set_ylim(max(0.5, finite.min() - 0.03), finite.max() + 0.012)
-    axes[0].legend(loc="lower right", fontsize=7)
+    _headroom(axes[0], 0.34)
+    axes[0].legend(loc="upper left", fontsize=7)
 
     # The architecture is carried by colour and by the legend already, so the tick
     # labels only need the condition. Repeating the model name on every tick makes
     # the axis unreadable and says nothing the colour has not said.
     ax = axes[1]
     conditions = (("none", False, "none"), ("d4", False, r"$D_4$"),
-                  ("none", True, "built in"))
+                  ("none", True, "pooled"))
     labels, values, colours, positions = [], [], [], []
+    groups = []                          # (centre, architecture) for the group labels
     pos = 0.0
     for arch in archs:
+        start = pos
         for policy, pooled, tag in conditions:
             rows = sub[(sub["arch"] == arch) & (sub["policy"] == policy)
                        & (sub["orientation_pooled"] == pooled)]
@@ -620,11 +642,27 @@ def fig_orientation(out_dir: Path) -> None:
             colours.append(PROBE_COLOUR[arch])
             positions.append(pos)
             pos += 1.0
-        pos += 0.6                       # a gap of surface between architectures
+        if pos > start:
+            groups.append(((start + pos - 1.0) / 2, arch))
+        pos += 0.8                       # a gap of surface between architectures
     ax.bar(positions, values, width=0.7, color=colours)
+    # The pooled bars are zero up to float round-off, so they draw nothing and the
+    # reader is left to infer an absence. Mark them, since they are the panel's whole
+    # point, and give the order of magnitude rather than writing a bare 0 that the
+    # measurement does not support.
+    tallest = max((v for v in values if v is not None and np.isfinite(v)), default=1.0)
+    for p, v in zip(positions, values):
+        if v is not None and np.isfinite(v) and v < 0.01 * tallest:
+            ax.annotate(f"$10^{{{int(np.floor(np.log10(max(v, 1e-30))))}}}$", (p, 0.0),
+                        textcoords="offset points", xytext=(0, 4), ha="center",
+                        fontsize=6, color=INK_SECOND)
     ax.set_xticks(positions)
-    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_xticklabels(labels, fontsize=6.5, rotation=30, ha="right")
     _tidy(ax, None, r"$\varepsilon_{D_4}$", "(b) how far from invariant")
+    for centre, arch in groups:          # architecture under its own group of bars
+        ax.annotate(PRETTY_ARCH.get(arch, arch), (centre, 0), xycoords=("data", "axes fraction"),
+                    textcoords="offset points", xytext=(0, -30), ha="center",
+                    fontsize=6.5, color=INK_SECOND, annotation_clip=False)
     _save(fig, out_dir, "fig_orientation")
 
 
@@ -712,7 +750,7 @@ def fig_cross_survey(out_dir: Path) -> None:
     # The quantity of interest is the paired difference, so plot it directly. A
     # source-versus-target scatter against the diagonal is the conventional form, but
     # it does not survive this distribution: ten of the twelve architectures sit
-    # within two points of no change -- six of them on the gaining side -- while two
+    # within two points of no change, six of them on the gaining side, while two
     # lose between three and thirty-five, so any shared square range collapses the
     # ten into an illegible corner. Penalty per architecture puts each on its own
     # labelled row, and because the values leave a genuine empty gap of fifteen
@@ -825,13 +863,13 @@ def fig_faithfulness(out_dir: Path) -> None:
                    edgecolor=SURFACE, linewidth=RING_W, label=PRETTY_FAMILY[family],
                    zorder=3)
     # Label selectively. With one point per explained run the panel would be
-    # unreadable if every one were named, so we name the extremes -- which is where
-    # the story is -- and let the legend and Table 6 carry the rest.
+    # unreadable if every one were named, so we name the extremes, which is where
+    # the story is, and let the legend and Table 6 carry the rest.
     ranked = merged.dropna(subset=[excess]).sort_values(excess)
     named = pd.concat([ranked.head(2), ranked.tail(2),
                        ranked[ranked[excess] > 0]]).drop_duplicates("run_id")
-    # four offsets rather than two: the named runs include near-duplicate pairs -- the
-    # same architecture under both label modes -- which two alternating offsets still
+    # four offsets rather than two: the named runs include near-duplicate pairs, the
+    # same architecture under both label modes, which two alternating offsets still
     # print on top of each other
     corners = ((7, 4, "left"), (-7, -10, "right"), (7, -10, "left"), (-7, 4, "right"))
     for k, (_, row) in enumerate(named.iterrows()):
@@ -886,7 +924,7 @@ def fig_faithfulness(out_dir: Path) -> None:
         _headroom(ax, 0.30)
         ax.legend(loc="upper right", ncol=1, fontsize=7)
 
-    # Each panel keeps its own legend -- the two encode different things, and one
+    # Each panel keeps its own legend, because the two encode different things and one
     # shared key would have to claim a colour means the same in both. Both sit inside
     # their axes, in headroom opened for them, so neither can reach the panel titles.
     _headroom(axes[0], 0.26)
@@ -997,9 +1035,63 @@ def fig_pipeline(out_dir: Path) -> None:
 
 # --------------------------------------------------------------------------- #
 
+def fig_gradcam(out_dir: Path) -> None:
+    path = config.RESULTS / "xai_gallery.npz"
+    if not path.exists():
+        # a marked placeholder rather than a skip, so the manuscript still builds and
+        # the gap is impossible to miss in the PDF
+        print("fig_gradcam: xai_gallery.npz missing; writing a placeholder. Rerun "
+              "src.xai with --gallery-run <run_id> to fill it in.")
+        fig, ax = plt.subplots(figsize=(7.2, 2.0))
+        ax.axis("off")
+        ax.text(0.5, 0.5, "attribution gallery pending\n(run src.xai --gallery-run)",
+                ha="center", va="center", fontsize=11, color="#c0392b")
+        _save(fig, out_dir, "fig_gradcam")
+        return
+    data = np.load(path, allow_pickle=False)
+    images, maps, bins = data["images"], data["maps"], data["bin"]
+    agreement = data["agreement"]
+
+    edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
+    present = sorted(set(int(b) for b in bins))
+    per_bin = max(1, int(np.bincount(bins).max()))
+
+    fig, axes = plt.subplots(per_bin, len(present),
+                             figsize=(1.42 * len(present), 1.42 * per_bin + 0.5),
+                             layout="constrained")
+    axes = np.atleast_2d(axes)
+    if axes.shape[0] != per_bin:
+        axes = axes.T
+    for col, b in enumerate(present):
+        members = np.flatnonzero(bins == b)
+        for r in range(per_bin):
+            ax = axes[r, col]
+            ax.set_xticks([]); ax.set_yticks([]); ax.grid(False)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            if r >= len(members):
+                ax.set_visible(False)
+                continue
+            i = members[r]
+            ax.imshow(images[i])
+            # a single perceptually ordered ramp over the cutout, kept light enough
+            # that the galaxy stays visible underneath: the reader has to be able to
+            # see what the attribution is sitting on
+            ax.imshow(maps[i], cmap="magma", alpha=0.45, vmin=0.0, vmax=1.0)
+            ax.set_title(f"$a$={agreement[i]:.2f}", fontsize=6, color=INK_MUTED,
+                         pad=2)
+            if r == 0:
+                ax.annotate(f"$a \\in [{edges[b]:.1f}, {edges[b + 1]:.1f})$",
+                            (0.5, 1.0), xycoords="axes fraction",
+                            textcoords="offset points", xytext=(0, 15),
+                            ha="center", fontsize=6.5, color=INK_SECOND)
+    _save(fig, out_dir, "fig_gradcam")
+
+
 FIGURES = {
     "dataset": fig_dataset,
     "agreement": fig_agreement,
+    "gradcam": fig_gradcam,
     "curve": fig_curve,
     "calibration": fig_calibration,
     "selective": fig_selective,
