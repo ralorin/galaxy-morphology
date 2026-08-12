@@ -3,39 +3,29 @@
     python -m src.prepare_gz2 --stage table
     python -m src.prepare_gz2 --stage images      # the slow one, run on the cpu queue
     python -m src.prepare_gz2 --stage all
+    python -m src.prepare_gz2 --inspect           # what columns the catalogue has
 
-What comes out of it, in $GZM_WORK/arrays:
+Outputs in $GZM_WORK/arrays:
 
-    gz2_table.csv    one row per galaxy: asset_id, p_featured, agreement, votes,
-                     hard label, split, row index into the image array
+    gz2_table.csv    asset_id, p_featured, agreement, votes, hard label, split, and
+                     the row index into the image array
     gz2_images.npy   uint8 memmap, (N, 160, 160, 3), rows aligned with the table
 
-Three decisions worth spelling out, because the rest of the paper depends on them.
+Three decisions the rest of the paper depends on.
 
-1. The question. We do not use the first letter of `gz2_class`. That string is the
-   single class Hart et al. assign to each galaxy and its early-type bin quietly
-   absorbs lenticulars and edge-on disks, which is not the question we want to
-   ask. Instead we take task 01 of the decision tree ("smooth and rounded, or
-   features/disk?") and renormalise its two galaxy answers.
+The question is task 01 of the decision tree, renormalised over its two galaxy
+answers. Not the first letter of `gz2_class`: that is a single assigned class whose
+early-type bin swallows lenticulars and edge-on disks, which is a different question.
 
-2. Raw fractions, not debiased ones. Hart et al. publish both, and the debiased
-   values are the better estimate of intrinsic morphology, so the obvious choice
-   looks wrong until you notice two things. First, the debiasing corrects for
-   redshift-dependent classification bias, which means the debiased value depends
-   on the galaxy's redshift -- information that is simply not in a cutout. Asking
-   a network to predict it is asking it to predict something partly unavailable in
-   its input. Second, and this is what the paper's argument rests on, the vote
-   model needs the label to be a threshold on a *sampled proportion* of a known
-   number of draws. A debiased value is no longer a proportion. So `p_featured` is
-   the raw fraction; `p_featured_debiased` is kept alongside it for the
-   sensitivity check, and it is worth knowing that on this catalogue the two
-   correlate at only about 0.74, so the choice is not cosmetic.
+The fractions are the raw ones, not the debiased ones. Debiasing corrects for
+redshift-dependent classification bias, so a debiased value depends on the redshift,
+which is not in a cutout. It is also no longer a proportion of a known number of
+draws, which the vote model needs. `p_featured_debiased` is kept alongside for the
+sensitivity check. The two only correlate at about 0.74 here, so this is not cosmetic.
 
-3. The crop. GZ2 jpegs are 424x424 with a per-galaxy pixel scale; the target sits
-   in the centre and the corners are full of unrelated objects. We take the
-   central 224x224 and cache at 160x160, following the crop-and-downsample recipe
-   of Dieleman et al. (2015). Models resize from the cache to whatever input they
-   want, so there is one array on disk instead of one per resolution.
+The crop is the central 224x224 of the 424x424 jpeg, cached at 160x160, following
+Dieleman et al. (2015). Models resize up from the cache, so there is one array on disk
+rather than one per resolution.
 """
 
 from __future__ import annotations

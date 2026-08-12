@@ -105,8 +105,8 @@ def group_orientation() -> list[dict]:
     free rather than by spending GPU time on it, because every run reports
     `d4_invariance_error`, which is zero by construction for these models.
 
-    The cheap form of the same idea -- one ordinary network, eight views averaged
-    at inference -- is not in this group either, because it is computed for every
+    The cheap form of the same idea, one ordinary network with eight views averaged
+    at inference, is not in this group either, because it is computed for every
     run in the study as the TTA column.
     """
     return [_job(arch=a, policy="none", label_mode="soft", seed=s,
