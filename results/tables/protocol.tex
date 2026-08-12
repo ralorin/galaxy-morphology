@@ -3,6 +3,8 @@
 \caption{Remaining design choices, test accuracy over two or three seeds. Each block gives its levels in the order named in the heading. Swin-T is absent from the resolution block because its window size fixes the input to 224\,px. The initialisation block compares ImageNet weights with random initialisation, in both cases fine-tuning the whole network; the frozen row of the second block is the linear-probe setting and should not be confused with it.}
 \label{tab:protocol}
 \footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{Model} & \textbf{level 1} & \textbf{level 2} & \textbf{level 3} \\
@@ -28,5 +30,5 @@ ConvNeXt-T & 0.954\,$\pm$\,0.001 & 0.947\,$\pm$\,0.001 &  \\
 ViT-S/16 & 0.951\,$\pm$\,0.002 & 0.937\,$\pm$\,0.001 &  \\
 \addlinespace
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}

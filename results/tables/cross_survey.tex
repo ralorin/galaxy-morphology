@@ -3,6 +3,8 @@
 \caption{Zero-shot transfer from SDSS to the DESI Legacy Imaging Surveys. Models are trained only on Galaxy Zoo~2 cutouts and evaluated, without any adaptation, on the Galaxy10 DECaLS images whose labels answer the same Galaxy Zoo question. We report balanced accuracy rather than accuracy because the featured fraction differs substantially between the two surveys, so a raw accuracy would confound a shift in class prior with a loss of discrimination. Columns marked $\dagger$ are evaluated at the operating point chosen on the \emph{source} survey's validation split instead of at 0.5; nothing from the target survey informs it, so the evaluation remains zero-shot. $\Delta^{\dagger}$ is the balanced accuracy lost in the transfer at that operating point, and the final column is threshold-free.}
 \label{tab:cross}
 \footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
 \begin{tabular}{llccccc}
 \toprule
 \textbf{Model} & \textbf{Labels} & \textbf{GZ2 bal.} & \textbf{DECaLS bal.} & \textbf{DECaLS bal.}$^{\dagger}$ & $\boldsymbol{\Delta^{\dagger}}$ & \textbf{DECaLS AUC} \\
@@ -32,5 +34,5 @@ DeiT3-S/16 & hard & 0.928 & 0.947 & 0.941 & +0.000 & 0.986 \\
 Swin-T & hard & 0.934 & 0.943 & 0.945 & -0.003 & 0.986 \\
  & soft & 0.942 & 0.959 & 0.952 & -0.002 & 0.991 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}

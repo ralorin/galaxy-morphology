@@ -3,6 +3,8 @@
 \caption{Orientation. \emph{learnt} means the network sees rotated and mirrored copies during training; \emph{built in} means its logit is averaged over the eight elements of $D_4$, which makes it exactly invariant at eight times the inference cost. $\varepsilon_{D_4}$ is the mean spread of the predicted probability over the eight views of a test image, so it is zero for the built-in models by construction and measures how much of the symmetry the others failed to absorb. The last column is training wall-clock time.}
 \label{tab:orientation}
 \footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
 \begin{tabular}{lllcccc}
 \toprule
 \textbf{Model} & \textbf{Augmentation} & \textbf{Invariance} & \textbf{Accuracy} & \textbf{AUC-ROC} & $\boldsymbol{\varepsilon_{D_4}}$ & \textbf{min} \\
@@ -26,5 +28,5 @@ ViT-S/16 & none & learnt & 0.945\,$\pm$\,0.001 & 0.989\,$\pm$\,0.000 & 0.071\,$\
  & none & built in & 0.951\,$\pm$\,0.001 & 0.990\,$\pm$\,0.000 & 0.000\,$\pm$\,0.000 & 357 \\
 \addlinespace
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}

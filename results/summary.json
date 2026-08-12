@@ -55,20 +55,20 @@
     "n_seeds": 5
   },
   "best_soft": {
-    "accuracy_mean": 0.953748326639893,
-    "accuracy_std": 0.0007445982416762487,
-    "arch": "densenet121",
-    "auc_mean": 0.9911646126440724,
-    "ece_mean": 0.14114331208710862,
+    "accuracy_mean": 0.9548192771084338,
+    "accuracy_std": 0.0005159762543316494,
+    "arch": "convnext_tiny",
+    "auc_mean": 0.9914823201177982,
+    "ece_mean": 0.14405172187961993,
     "n_seeds": 5
   },
   "coverage_at_99_best": 0.882843875502008,
   "coverage_at_99_median": 0.8657337684069611,
   "learning_curve": {
-    "galaxies_needed_max": 13771815.56853578,
+    "galaxies_needed_max": 3463194.5780401086,
     "galaxies_needed_min": 1371730.8662529022,
-    "mean_gap_to_ceiling": 0.016155530322310485,
-    "mean_slope_per_decade": 0.01401004861711421,
+    "mean_gap_to_ceiling": 0.01565689225150879,
+    "mean_slope_per_decade": 0.014652851347370162,
     "n_curves": 4,
     "n_still_rising": 4,
     "per_curve": {
@@ -81,11 +81,11 @@
         "still_rising": true
       },
       "resnet50/soft": {
-        "decades_needed": 1.0416268188175135,
-        "final_accuracy": 0.952711308195746,
-        "galaxies_needed": 1841303.4024678874,
-        "gap_to_ceiling": 0.01266843378802518,
-        "slope_per_decade": 0.012162161687049082,
+        "decades_needed": 0.9854853342091652,
+        "final_accuracy": 0.9530120481927711,
+        "galaxies_needed": 1618019.9461102795,
+        "gap_to_ceiling": 0.012367693791000112,
+        "slope_per_decade": 0.01254985067933555,
         "still_rising": true
       },
       "vit_small/hard": {
@@ -97,11 +97,11 @@
         "still_rising": true
       },
       "vit_small/soft": {
-        "decades_needed": 1.9154926611645349,
-        "final_accuracy": 0.9507869440725867,
-        "galaxies_needed": 13771815.56853578,
-        "gap_to_ceiling": 0.014592797911184507,
-        "slope_per_decade": 0.007618300089081381,
+        "decades_needed": 1.3159783560192928,
+        "final_accuracy": 0.9524807563587684,
+        "galaxies_needed": 3463194.5780401086,
+        "gap_to_ceiling": 0.012898985625002801,
+        "slope_per_decade": 0.00980182201781873,
         "still_rising": true
       }
     }
@@ -113,6 +113,33 @@
       0.964529810122524,
       0.9662823347645799
     ],
+    "by_agreement_bin": {
+      "0": {
+        "bayes_accuracy": 0.7179294537342423,
+        "n": 5122,
+        "share": 0.10713688085676037
+      },
+      "1": {
+        "bayes_accuracy": 0.9643250184728399,
+        "n": 5706,
+        "share": 0.11935240963855422
+      },
+      "2": {
+        "bayes_accuracy": 0.999030549954155,
+        "n": 6977,
+        "share": 0.14593791834002678
+      },
+      "3": {
+        "bayes_accuracy": 0.9999974240682632,
+        "n": 13454,
+        "share": 0.2814173360107095
+      },
+      "4": {
+        "bayes_accuracy": 0.999999999811636,
+        "n": 16549,
+        "share": 0.34615545515394913
+      }
+    },
     "column": "p_featured",
     "label_noise_rate": 0.03462025801622885,
     "median_votes": 41.0,
