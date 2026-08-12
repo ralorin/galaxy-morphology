@@ -5,46 +5,29 @@
 Writes into $GZM_WORK/results:
 
     runs.csv              one tidy row per run: configuration plus every metric
-    agreement.csv         accuracy and calibration inside each volunteer-agreement bin
-    ceiling.json          the vote-model ceiling, computed from the catalogue alone
-    selective.csv         risk-coverage summaries, coverage at 95/98/99% accuracy
-    calibration.csv       reliability curves for the runs we plot
+    agreement.csv         accuracy and calibration inside each agreement bin
+    ceiling.json          the vote-model ceiling, from the catalogue alone
+    selective.csv         coverage reachable at 95/98/99% accuracy
+    risk_coverage.csv     the full accuracy-coverage curves for the plotted runs
+    calibration.csv       reliability curves for the same runs
     cross_survey.csv      SDSS -> DECaLS transfer for every run that has it
-    summary.json          the handful of numbers quoted in the abstract
+    summary.json          the numbers quoted in the abstract
 
-The one piece of modelling in here is `vote_ceiling`, so it is worth being explicit
-about what it does and what it bounds.
-
-A Galaxy Zoo label is a threshold applied to a *measurement*. What the catalogue
-records is not the volunteer pool's propensity p* to call a galaxy featured but an
-estimate of it, p_hat = K/N, from the N volunteers who happened to be asked. The
-label everybody trains and tests on is 1[p_hat > 0.5]. Two galaxies identical in
-appearance therefore share a propensity but can carry different recorded labels,
-purely because different people looked at them.
-
-Model the votes as Bernoulli draws with rate p and panel size N. The probability
-that a panel returns "featured" is
+The modelling is all in vote_ceiling(). Votes are Bernoulli draws with rate p over a
+panel of size N, so a panel returns "featured" with probability
 
     pi(p, N) = P(Bin(N, p) > N/2) + 0.5 * P(Bin(N, p) = N/2)
 
-so P(y = 1 | image) = pi(p*, N) and the Bayes-optimal predictor of the *recorded*
-label attains E[max(pi, 1 - pi)]. That is a bound on accuracy against the frozen
-test labels, not merely against some hypothetical fresh panel: a classifier sees
-pixels, and no function of the pixels can anticipate which way one particular
-panel fell.
+and the best possible predictor of the *recorded* label gets E[max(pi, 1-pi)]. Note
+that is a bound against the frozen test labels, not against some fresh panel: the
+classifier sees pixels and cannot know which way one particular panel fell.
 
-The estimation step biases the result in a convenient direction. We substitute
-p_hat for p*, and max(pi, 1-pi) is convex, so by Jensen the plug-in expectation
-*over*-estimates the bound. The ceiling reported here is therefore generous to the
-classifiers rather than harsh: an accuracy below it says nothing on its own, while
-an accuracy above it would be evidence against the model or against the
-independence of the test split.
-
-The assumptions are worth stating too, and the paper states them. Volunteers are
-not exchangeable; the debiasing of Hart et al. means the published fraction is not
-a raw proportion, so we feed the raw fractions in and report the debiased variant
-as a sensitivity check; and the binomial ignores correlations in who classified
-what.
+We substitute p_hat = K/N for the true propensity, and max(pi, 1-pi) is convex, so
+Jensen says the plug-in over-estimates. Fine for our purposes, the bias is generous
+to the classifiers rather than harsh. Assumptions, all of them in the paper too:
+volunteers are not exchangeable, correlations in who classified what are ignored, and
+the raw fractions go in rather than the debiased ones (the debiased variant is
+reported as a sensitivity check).
 """
 
 from __future__ import annotations
@@ -59,6 +42,7 @@ import config
 from src.common import (bootstrap_ci, classification_metrics, coverage_at_accuracy,
                         ensure_dir, load_table, read_json, reliability_curve,
                         risk_coverage_curve, write_json)
+from src.registry import REGISTRY, reference_runs
 
 CONFIG_KEYS = ("arch", "label_mode", "policy", "size", "finetune", "loss",
                "train_size", "seed", "orientation_pooled", "pretrained")
@@ -135,8 +119,8 @@ def choose_threshold(y: np.ndarray, prob: np.ndarray) -> float:
 
     We therefore report every threshold metric twice: at 0.5, which is what the
     literature reports, and at this operating point. The threshold is chosen on
-    validation data only -- for the cross-survey evaluation, on the *source*
-    survey's validation split -- so nothing about the test set or the target
+    validation data only, and for the cross-survey evaluation on the *source*
+    survey's validation split, so nothing about the test set or the target
     survey leaks into it, and the zero-shot protocol stays zero-shot.
     """
     from sklearn.metrics import balanced_accuracy_score
@@ -269,7 +253,33 @@ def vote_ceiling(table: pd.DataFrame, column: str = "p_featured") -> dict:
         "panel_agreement": human_human,
         # how often the recorded label is the minority answer of a fresh panel
         "label_noise_rate": label_noise,
+        "by_agreement_bin": _ceiling_by_bin(test, p, pi),
     }
+
+
+def _ceiling_by_bin(test: pd.DataFrame, p: np.ndarray, pi: np.ndarray) -> dict:
+    """The same ceiling, computed inside each agreement bin.
+
+    A single global $A^\\star$ drawn across the agreement panels is misleading in both
+    directions: the near-unanimous bin sits above it and looks like a violation, and
+    the contested bin sits far below it and looks like room a better model could take.
+    Neither is true. The ceiling is a property of the vote distribution and the vote
+    distribution is what the bins are cut on, so it has to be reported per bin for the
+    comparison in that figure to mean anything.
+    """
+    edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
+    agreement = np.abs(2.0 * p - 1.0)
+    idx = np.clip(np.digitize(agreement, edges[1:-1]), 0, len(edges) - 2)
+    out = {}
+    for b in range(len(edges) - 1):
+        inside = idx == b
+        if not inside.any():
+            continue
+        best = np.maximum(pi[inside], 1.0 - pi[inside])
+        out[str(b)] = {"bayes_accuracy": float(best.mean()),
+                       "share": float(inside.mean()),
+                       "n": int(inside.sum())}
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -283,8 +293,8 @@ def agreement_profile(runs: pd.DataFrame, prob_column: str = "prob") -> pd.DataF
     concentrated where the volunteers disagreed, the ceiling is a property of the
     labels; if it is spread evenly, it is a property of the models.
 
-    The class prior varies a great deal between bins on this catalogue -- the
-    near-unanimous bin is mostly featured, the 0.6-0.8 bin mostly smooth -- so raw
+    The class prior varies a great deal between bins on this catalogue. The
+    near-unanimous bin is mostly featured and the 0.6-0.8 bin mostly smooth, so raw
     accuracy is not comparable across bins on its own. We therefore also record the
     within-bin majority baseline and the balanced accuracy, and the figure plots the
     baseline alongside the curve. `lift` is accuracy minus that baseline, which is
@@ -385,6 +395,30 @@ def selective_prediction(runs: pd.DataFrame,
     return out.merge(runs[["run_id", *CONFIG_KEYS]], on="run_id", how="left")
 
 
+def risk_coverage_curves(runs: pd.DataFrame, run_ids: list[str],
+                         n_points: int = 200) -> pd.DataFrame:
+    """The full accuracy-versus-coverage curve for a handful of runs.
+
+    selective.csv keeps three summary coverages per run, which is what the tables
+    need, but the figure needs the curve. Reading it back from the per-run
+    predictions ties the figure to a gigabyte of files that are too large to publish,
+    so the curve itself is stored here, resampled onto a common coverage grid.
+    """
+    grid = np.linspace(0.02, 1.0, n_points)
+    rows = []
+    for run_id in run_ids:
+        pred = _predictions(run_id)
+        if pred is None:
+            continue
+        cov, acc, _ = risk_coverage_curve(pred["label"], pred["prob"])
+        rows.extend({"run_id": run_id, "coverage": float(c),
+                     "accuracy": float(np.interp(c, cov, acc))} for c in grid)
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    return out.merge(runs[["run_id", *CONFIG_KEYS]], on="run_id", how="left")
+
+
 def calibration_curves(runs: pd.DataFrame, run_ids: list[str], n_bins: int = 15
                        ) -> pd.DataFrame:
     """Reliability curves, one row per (run, bin).
@@ -445,8 +479,8 @@ def learning_curve_reach(runs: pd.DataFrame, ceiling: dict,
                          train_size: int | None = None) -> dict:
     """How much more annotation the learning curves say the ceiling would cost.
 
-    The honest reading of the curves is not that they have flattened -- they have
-    not -- but that their slope is shallow enough for the remaining gap to be
+    The honest reading of the curves is not that they have flattened, because they
+    have not, but that their slope is shallow enough for the remaining gap to be
     unaffordable. Accuracy grows roughly linearly in the logarithm of the training
     set size, so we fit that slope over the last three points of each curve and ask
     how many decades of additional data the gap to the vote-model ceiling implies.
@@ -466,12 +500,16 @@ def learning_curve_reach(runs: pd.DataFrame, ceiling: dict,
     if "bayes_accuracy" not in ceiling and "raw" in ceiling:
         ceiling = ceiling["raw"]
     target = ceiling.get("bayes_accuracy")
+    # everything pinned except train_size, which is the axis of the curve. The input
+    # size matters as much as the rest: the resolution sweep shares this protocol and
+    # would otherwise contaminate the full-split anchor of every curve.
+    native = runs["arch"].map(lambda x: REGISTRY[x].input_size if x in REGISTRY else None)
     sub = runs[(runs["policy"] == "d4") & (runs["finetune"] == "full")
                & (runs["loss"] == "bce")
                & (~runs["orientation_pooled"].astype(bool))
-               & (runs["label_mode"].isin(["hard", "soft"]))]
-    if "pretrained" in sub:
-        sub = sub[sub["pretrained"].fillna(True).astype(bool)]
+               & (runs["label_mode"].isin(["hard", "soft"]))
+               & (runs["pretrained"].fillna(True).astype(bool))
+               & (runs["size"] == native)]
     # train_size == 0 is the sentinel for "the whole training split", so it has to be
     # resolved to the real count. If it cannot be, the full-split runs must be dropped
     # rather than left at zero: log10(0) would silently move the last three points of
@@ -521,8 +559,7 @@ def learning_curve_reach(runs: pd.DataFrame, ceiling: dict,
 def summarise(runs: pd.DataFrame, agreement: pd.DataFrame, ceiling: dict,
               selective: pd.DataFrame) -> dict:
     """The numbers that go in the abstract, pulled from the tables above."""
-    ref = runs[(runs["policy"] == "d4") & (runs["finetune"] == "full")
-               & (runs["train_size"] == 0) & (~runs["orientation_pooled"].astype(bool))]
+    ref = reference_runs(runs)
 
     def best(frame, mode):
         sub = frame[frame["label_mode"] == mode]
@@ -597,12 +634,14 @@ def main() -> None:
 
         probability_vs_votes(runs).to_csv(config.RESULTS / "vote_tracking.csv", index=False)
 
-        # reliability curves only for the reference runs of seed 0, which is what
-        # the figure shows
+        # reliability and risk-coverage curves only for the reference runs of seed 0,
+        # which is what the figures show
         wanted = runs[(runs["seed"] == 0) & (runs["policy"] == "d4")
                       & (runs["train_size"] == 0)]["run_id"].tolist()
         calibration_curves(runs, wanted).to_csv(config.RESULTS / "calibration.csv",
                                                 index=False)
+        risk_coverage_curves(runs, wanted).to_csv(config.RESULTS / "risk_coverage.csv",
+                                                  index=False)
 
     cross = cross_survey(runs)
     if not cross.empty:

@@ -35,6 +35,7 @@ from scipy import stats
 
 import config
 from src.common import ensure_dir, write_json
+from src.registry import REGISTRY, reference_runs
 
 ALPHA = 0.05
 
@@ -122,9 +123,14 @@ def friedman_over_architectures(runs: pd.DataFrame, label_mode: str = "soft",
     over several trials (Demsar 2006). The post-hoc part is the Nemenyi critical
     difference, which is what the critical-difference diagram in the paper draws.
     """
-    sub = runs[(runs["label_mode"] == label_mode) & (runs["policy"] == "d4")
-               & (runs["finetune"] == "full") & (runs["train_size"] == 0)
-               & (~runs["orientation_pooled"].astype(bool))]
+    sub = reference_runs(runs, label_mode=label_mode)
+    # pivot_table would average silently if the pool still held more than one
+    # configuration per (seed, architecture), which is how the resolution sweep used
+    # to leak in; after reference_runs there should be exactly one
+    duplicated = sub.duplicated(subset=["seed", "arch"]).sum()
+    if duplicated:
+        raise SystemExit(f"{duplicated} duplicate (seed, architecture) cells in the "
+                         "Friedman pool; the reference protocol is not pinned")
     wide = sub.pivot_table(index="seed", columns="arch", values=metric)
     wide = wide.dropna(axis=1, how="any").dropna(axis=0, how="any")
     if wide.shape[1] < 3 or wide.shape[0] < 3:
@@ -220,7 +226,7 @@ def architecture_pairwise(runs: pd.DataFrame, label_mode: str = "soft") -> pd.Da
     difference is: with five pairs the smallest attainable two-sided p value is
     0.0625. The Nemenyi critical difference has the same problem from the other
     direction, being very wide with five blocks. Both are still worth reporting --
-    Friedman for whether architecture matters at all, Nemenyi for the ranking -- but
+    Friedman for whether architecture matters at all, Nemenyi for the ranking, but
     the pairwise claims are made here instead, where the unit of replication is the
     test galaxy rather than the seed.
 
@@ -228,11 +234,10 @@ def architecture_pairwise(runs: pd.DataFrame, label_mode: str = "soft") -> pd.Da
     architecture is represented by the same kind of object (a five-member ensemble
     of itself) and the comparison is not at the mercy of one lucky initialisation.
     """
-    sub = runs[(runs["label_mode"] == label_mode) & (runs["policy"] == "d4")
-               & (runs["finetune"] == "full") & (runs["train_size"] == 0)
-               & (~runs["orientation_pooled"].astype(bool))]
-    if "pretrained" in sub:
-        sub = sub[sub["pretrained"].fillna(True).astype(bool)]
+    # every architecture has to be the same kind of object, which means the same
+    # number of seeds at the same resolution, or the ensemble sizes differ and the
+    # comparison quietly favours whichever architecture had the most runs
+    sub = reference_runs(runs, label_mode=label_mode)
 
     pooled: dict[str, pd.DataFrame] = {}
     for arch, group in sub.groupby("arch"):
@@ -284,13 +289,25 @@ def paired_runs_for_mcnemar(runs: pd.DataFrame) -> list[tuple[str, str]]:
     vs built-in invariance, and the best transformer against the best convnet.
     """
     pairs = []
-    seed0 = runs[(runs["seed"] == 0) & (runs["train_size"] == 0)]
+    # Pin the resolution and the initialisation here too. find() returns whatever
+    # matches the keys it is given and the caller takes the first element, so without
+    # these two the 112-pixel resolution-sweep run is what came back for the probe
+    # architectures and six of the tests compared models that differed in input size
+    # as well as in the factor under test.
+    native = runs["arch"].map(lambda a: REGISTRY[a].input_size if a in REGISTRY else None)
+    seed0 = runs[(runs["seed"] == 0) & (runs["train_size"] == 0)
+                 & (runs["loss"] == "bce")
+                 & (runs["pretrained"].fillna(True).astype(bool))
+                 & (runs["size"] == native)]
 
     def find(**kw):
         sub = seed0
         for k, v in kw.items():
             sub = sub[sub[k] == v]
-        return sub["run_id"].tolist()
+        ids = sub["run_id"].tolist()
+        if len(ids) > 1:
+            raise SystemExit(f"ambiguous pairing for {kw}: {ids}")
+        return ids
 
     for arch in sorted(runs["arch"].dropna().unique()):
         hard = find(arch=arch, label_mode="hard", policy="d4", finetune="full",
@@ -315,8 +332,7 @@ def paired_runs_for_mcnemar(runs: pd.DataFrame) -> list[tuple[str, str]]:
     # best convnet vs best transformer under the reference protocol
     from src import registry
 
-    ref = runs[(runs["label_mode"] == "soft") & (runs["policy"] == "d4")
-               & (runs["train_size"] == 0) & (~runs["orientation_pooled"].astype(bool))]
+    ref = reference_runs(runs, label_mode="soft")
     if not ref.empty:
         ref = ref.assign(family=ref["arch"].map(registry.family_of))
         best = {}

@@ -63,6 +63,34 @@ PRETTY_FAMILY = {"custom": "Scratch CNN", "cnn": "Pretrained CNN",
                  "transformer": "Transformer"}
 
 
+def reference_runs(runs, label_mode: str | None = None):
+    """The one protocol every headline number comes from.
+
+    $D_4$ augmentation, full fine-tuning from ImageNet weights, cross-entropy, the
+    whole training split, no orientation pooling, and each architecture at its own
+    native input resolution.
+
+    That last condition is the one that is easy to forget and expensive to get wrong.
+    The resolution sweep reuses the reference protocol and changes only the input
+    size, so its runs satisfy every other condition and land in the pool unless the
+    size is pinned. Four of the twelve architectures then average nine runs at three
+    resolutions into a row the caption calls five seeds. Every module that needs the
+    reference protocol calls this rather than restating the predicate, because the
+    predicate had already drifted apart in five places.
+    """
+    native = runs["arch"].map(lambda a: REGISTRY[a].input_size if a in REGISTRY else None)
+    keep = ((runs["policy"] == "d4")
+            & (runs["finetune"] == "full")
+            & (runs["loss"] == "bce")
+            & (runs["train_size"].fillna(0).astype(int) == 0)
+            & (~runs["orientation_pooled"].fillna(False).astype(bool))
+            & (runs["pretrained"].fillna(True).astype(bool))
+            & (runs["size"] == native))
+    if label_mode is not None:
+        keep &= runs["label_mode"] == label_mode
+    return runs[keep]
+
+
 def family_of(arch: str) -> str:
     spec = REGISTRY.get(arch)
     return spec.family if spec else "unknown"
