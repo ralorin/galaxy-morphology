@@ -1,0 +1,19 @@
+{
+  "artifact_max": 0.3,
+  "cache_size": 160,
+  "crop": 224,
+  "featured_fraction": 0.2609692522038919,
+  "featured_fraction_debiased": 0.5911911266939739,
+  "label_disagreement_raw_vs_debiased": 0.3310419272914409,
+  "majority_baseline": 0.7390307477961081,
+  "mean_agreement": 0.6295495236536786,
+  "median_votes": 43.0,
+  "median_votes_binary": 41.0,
+  "min_votes": 20,
+  "n_galaxies": 239009,
+  "split_counts": {
+    "test": 47808,
+    "train": 167301,
+    "val": 23900
+  }
+}

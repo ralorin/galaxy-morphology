@@ -64,6 +64,48 @@
   },
   "coverage_at_99_best": 0.882843875502008,
   "coverage_at_99_median": 0.8657337684069611,
+  "learning_curve": {
+    "galaxies_needed_max": 13771815.56853578,
+    "galaxies_needed_min": 1371730.8662529022,
+    "mean_gap_to_ceiling": 0.016155530322310485,
+    "mean_slope_per_decade": 0.01401004861711421,
+    "n_curves": 4,
+    "n_still_rising": 4,
+    "per_curve": {
+      "resnet50/hard": {
+        "decades_needed": 1.2054773349997947,
+        "final_accuracy": 0.9479082998661312,
+        "galaxies_needed": 2685195.2598457215,
+        "gap_to_ceiling": 0.017471442117639957,
+        "slope_per_decade": 0.01449338084622133,
+        "still_rising": true
+      },
+      "resnet50/soft": {
+        "decades_needed": 1.0416268188175135,
+        "final_accuracy": 0.952711308195746,
+        "galaxies_needed": 1841303.4024678874,
+        "gap_to_ceiling": 0.01266843378802518,
+        "slope_per_decade": 0.012162161687049082,
+        "still_rising": true
+      },
+      "vit_small/hard": {
+        "decades_needed": 0.9137703742463116,
+        "final_accuracy": 0.9454902945113789,
+        "galaxies_needed": 1371730.8662529022,
+        "gap_to_ceiling": 0.019889447472392296,
+        "slope_per_decade": 0.02176635184610504,
+        "still_rising": true
+      },
+      "vit_small/soft": {
+        "decades_needed": 1.9154926611645349,
+        "final_accuracy": 0.9507869440725867,
+        "galaxies_needed": 13771815.56853578,
+        "gap_to_ceiling": 0.014592797911184507,
+        "slope_per_decade": 0.007618300089081381,
+        "still_rising": true
+      }
+    }
+  },
   "n_runs": 281,
   "vote_ceiling": {
     "bayes_accuracy": 0.9653797419837712,
