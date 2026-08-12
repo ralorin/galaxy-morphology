@@ -36,9 +36,10 @@ TARGET = REPO / "results"
 # aggregate tables written by src.analysis and src.stats
 AGGREGATES = (
     "runs.csv", "summary.json", "ceiling.json", "agreement.csv", "selective.csv",
-    "calibration.csv", "vote_tracking.csv", "cross_survey.csv", "bootstrap.csv",
+    "calibration.csv", "risk_coverage.csv", "vote_tracking.csv",
+    "cross_survey.csv", "bootstrap.csv",
     "mcnemar.csv", "architecture_pairwise.csv", "friedman.json", "wilcoxon.csv",
-    "xai_summary.csv",
+    "xai_summary.csv", "xai_gallery.npz",
 )
 
 

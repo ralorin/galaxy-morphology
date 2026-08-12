@@ -1,70 +1,38 @@
-"""Saliency maps and, more importantly, numbers that say whether they mean anything.
+"""Saliency maps, and numbers that say whether they mean anything.
 
     python -m src.xai --runs resnet50_soft_d4_s224_full_bce_nfull_seed0 --n 12
     python -m src.xai --all-checkpoints          # every run that saved weights
+    python -m src.xai --all-checkpoints --gallery-run <run_id>   # keep the arrays
 
-For each run this produces
+Writes results/xai/<run_id>.json (means) and .csv (per galaxy), plus an overlay PNG
+to eyeball while the sweep runs. --gallery-run also dumps the cutouts and maps to
+results/xai_gallery.npz, which is what the manuscript figure is drawn from.
 
-    results/xai/<run_id>.json    faithfulness scores averaged over the sample
-    results/xai/<run_id>.csv     per-galaxy scores
-    figures/xai_<run_id>.png     an overlay panel for the qualitative figure
+Convnets get Grad-CAM and Grad-CAM++ on the last spatial stage, transformers get
+attention rollout. Swin is the awkward one: shifted windows make rollout ill-defined,
+so it is treated as a convnet on its last stage output.
 
-Methods. Convolutional networks get Grad-CAM and Grad-CAM++ on the last spatial
-stage. Transformers get attention rollout, which is the closest equivalent that
-does not depend on a spatial feature map. Swin is the awkward case: its shifted
-windows make rollout ill-defined, so it is treated like a convnet on the output of
-its last stage.
+Three scores per map. Deletion AUC (blank the most salient pixels first, lower is
+better), insertion AUC (restore them into a blurred image, higher is better), and
+their difference as `faithfulness`. Third is background excess: attribution mass
+outside the galaxy footprint, minus what a uniform map would put there.
 
-Why the numbers matter. A heatmap that lands on the galaxy looks convincing whether
-or not the network used that region, so we score the maps three ways instead of
-eyeballing them:
+Watch out for three things, all of which bit us:
 
-*   deletion AUC   blank out the most salient pixels first and watch the score of
-                   the originally predicted class fall. A faithful map makes it
-                   fall fast, so lower is better.
-*   insertion AUC  start from a blurred image and restore the most salient pixels
-                   first. Higher is better. `faithfulness` is the difference of the
-                   two, as a single number. Both curves are normalised by the score
-                   on the intact image, so they read as the fraction of the original
-                   score retained and are comparable between models whose confidence
-                   is scaled differently.
-*   background excess
-                   how much more attribution mass falls outside the galaxy's own
-                   footprint than a uniform map would put there. This one is
-                   specific to the problem and it is what catches a network keying
-                   on sky noise or on a neighbour at the edge of the crop.
+- The curves must track the *predicted* class, not the positive class. Three in four
+  galaxies here are smooth, so P(featured) rises as evidence is destroyed and an
+  average over both classes cancels itself out.
+- Normalising by the intact score fixes where the curves start but not where they
+  end, so deletion and insertion compare architectures within a label mode and not
+  across label modes. Background excess is free of this and is where that comparison
+  belongs.
+- The raw background share depends on how much of the frame the galaxy fills, and
+  compact smooth galaxies leave more sky. Smooth galaxies are also the agreed ones,
+  so the confound runs along the axis we stratify on. Subtracting the uniform null,
+  1 - footprint_fraction, removes it.
 
-Three details of those definitions do real work, and all three were arrived at after
-the naive versions produced numbers that turned out to measure something else.
-
-The curves track the predicted class rather than the positive class, and they are
-normalised. Three of every four galaxies here are smooth, and for those the
-probability of "featured" rises as evidence is destroyed; a curve averaged over both
-classes would run in opposite directions for each and mean nothing. Normalising by
-the intact score then equalises where the curves start, which they otherwise do not
-when one model is more confident than another.
-
-That correction is partial and the limit is worth knowing. It fixes the top of the
-curve but not the bottom: a model whose probabilities are compressed towards one
-half has less distance to fall before it reaches the fully-perturbed floor, so its
-deletion area stays higher for reasons of output scale rather than of attribution.
-The practical consequence is that deletion and insertion compare architectures
-cleanly *within* a label mode and should not be used to compare the label modes
-against each other. Background excess has no such problem -- it is computed from a
-map normalised to [0,1] and never touches the model's output -- and is where the
-label-mode comparison belongs.
-
-Background reliance is quoted against a null. The raw share of mass outside the
-galaxy depends on how much of the frame the galaxy fills, and compact smooth
-galaxies leave more empty sky than sprawling spirals do. Since smooth galaxies are
-also the ones volunteers agree on, that confound runs straight through the
-stratification we care about. Subtracting what a uniform map would score,
-1 - footprint_fraction, removes it: zero means uninformative, negative means the
-map concentrates on the galaxy.
-
-The footprint comes from the image itself: threshold at the sky level estimated
-from the border, keep the connected component that contains the centre. That is a
-crude segmentation but it does not need to be precise, only unbiased with respect
+The footprint is a threshold at the border-estimated sky level plus the connected
+component containing the centre. Crude, but it only has to be unbiased with respect
 to the model being scored.
 """
 
@@ -323,8 +291,8 @@ def deletion_insertion(model, x: torch.Tensor, cam: torch.Tensor,
 
     # Normalise by the score on the intact image. Without this the areas are not
     # comparable between models, because a model whose probabilities are compressed
-    # towards one half -- which is exactly what training on vote fractions produces
-    # -- starts both curves lower and therefore scores a smaller area for reasons of
+    # towards one half, which is exactly what training on vote fractions produces,
+    # starts both curves lower and therefore scores a smaller area for reasons of
     # calibration rather than of explanation quality. After normalising, deletion
     # starts at one and insertion ends at one for every model, and both areas read
     # as the fraction of the original score retained.
@@ -458,7 +426,7 @@ def sample_test_galaxies(n: int, seed: int = 0) -> pd.DataFrame:
 
 
 def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
-                make_panel: bool = True) -> dict:
+                make_panel: bool = True, gallery: bool = False) -> dict:
     set_seed(config.SEED, deterministic=True)
     device = get_device()
     model, norm, cfg = load_run(run_id)
@@ -547,11 +515,45 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
 
     if make_panel:
         _panel(run_id, cams, per_galaxy)
+    if gallery:
+        _save_gallery(run_id, cams, per_galaxy)
     print(f"  deletion {summary['deletion_auc']:.3f}  insertion {summary['insertion_auc']:.3f}  "
           f"background {summary['background_reliance']:.3f} "
           f"(excess {summary['background_excess']:+.3f}, "
           f"footprint {summary['footprint_fraction']:.3f})")
     return summary
+
+
+def _save_gallery(run_id: str, cams, per_galaxy: pd.DataFrame,
+                  per_bin: int = 3) -> None:
+    """Keep the cutouts and their maps so the paper figure can be drawn anywhere.
+
+    The diagnostic panel below is a PNG dumped straight from this script, which is
+    fine for looking at while the sweep runs but not for a manuscript: it carries none
+    of the figure styling and cannot be regenerated without a GPU and the checkpoints.
+    This stores the arrays instead, a few megabytes, so src.figures can draw the real
+    thing from the published results alone.
+    """
+    edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
+    agreement = per_galaxy["agreement"].to_numpy()
+    idx = np.clip(np.digitize(agreement, edges[1:-1]), 0, len(edges) - 2)
+
+    keep = []
+    for b in range(len(edges) - 1):
+        inside = np.flatnonzero(idx == b)
+        keep.extend(inside[:per_bin])
+    if not keep:
+        return
+
+    images = np.stack([cams[i][0] for i in keep]).astype(np.uint8)
+    maps = np.stack([cams[i][1] for i in keep]).astype(np.float32)
+    columns = ["agreement", "p_featured", "prob", "correct", "background_excess"]
+    meta = {c: per_galaxy.iloc[keep][c].to_numpy() for c in columns
+            if c in per_galaxy}
+    out = ensure_dir(config.RESULTS) / "xai_gallery.npz"
+    np.savez_compressed(out, images=images, maps=maps, bin=idx[keep],
+                        run_id=np.array(run_id), **meta)
+    print(f"  wrote {out} with {len(keep)} galaxies")
 
 
 def _panel(run_id: str, cams, per_galaxy: pd.DataFrame, cols: int = 6) -> None:
@@ -587,6 +589,9 @@ def main() -> None:
     ap.add_argument("--method", choices=["auto", "gradcam", "gradcam++", "rollout"],
                     default="auto")
     ap.add_argument("--steps", type=int, default=20)
+    ap.add_argument("--gallery-run", default=None,
+                    help="run_id whose maps are kept as arrays for the manuscript "
+                         "figure; only one, since the figure shows one model")
     args = ap.parse_args()
 
     run_ids = args.runs or []
@@ -598,7 +603,8 @@ def main() -> None:
     summaries = []
     for run_id in run_ids:
         try:
-            summaries.append(explain_run(run_id, args.n, args.method, args.steps))
+            summaries.append(explain_run(run_id, args.n, args.method, args.steps,
+                                         gallery=run_id == args.gallery_run))
         except SystemExit as exc:
             print(f"skipping {run_id}: {exc}")
 
