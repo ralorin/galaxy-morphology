@@ -395,6 +395,44 @@ def selective_prediction(runs: pd.DataFrame,
     return out.merge(runs[["run_id", *CONFIG_KEYS]], on="run_id", how="left")
 
 
+def dataset_sample(table: pd.DataFrame, per_bin: int = 3) -> dict:
+    """What the dataset figure needs, small enough to publish.
+
+    The figure draws three histograms over the whole catalogue and a grid of example
+    cutouts, and both come from files that are far too large to put in a repository:
+    a quarter of a million rows and a six-gigabyte image array. Keeping the three
+    columns the histograms use, plus the handful of cutouts the grid actually shows,
+    costs a few megabytes and means the figure can be redrawn on a laptop long after
+    the cluster storage has been reclaimed.
+    """
+    images = np.load(config.ARRAYS / "gz2_images.npy", mmap_mode="r")
+    edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
+    rng = np.random.default_rng(config.SEED)
+
+    rows, cutouts = [], []
+    for b in range(len(edges) - 1):
+        inside = table[(table["agreement"] >= edges[b])
+                       & (table["agreement"] < edges[b + 1] + 1e-9)]
+        if inside.empty:
+            continue
+        take = rng.choice(len(inside), size=min(per_bin, len(inside)), replace=False)
+        for _, row in inside.iloc[take].iterrows():
+            rows.append((b, float(row["p_featured"]), float(row["agreement"]),
+                         int(row["votes"])))
+            cutouts.append(np.asarray(images[int(row["row"])]))
+
+    return {
+        "p_featured": table["p_featured"].to_numpy(dtype=np.float32),
+        "agreement": table["agreement"].to_numpy(dtype=np.float32),
+        "votes": table["votes"].to_numpy(dtype=np.int16),
+        "sample_bin": np.array([r[0] for r in rows], dtype=np.int8),
+        "sample_p": np.array([r[1] for r in rows], dtype=np.float32),
+        "sample_agreement": np.array([r[2] for r in rows], dtype=np.float32),
+        "sample_votes": np.array([r[3] for r in rows], dtype=np.int16),
+        "sample_images": np.stack(cutouts).astype(np.uint8) if cutouts else np.zeros(0),
+    }
+
+
 def risk_coverage_curves(runs: pd.DataFrame, run_ids: list[str],
                          n_points: int = 200) -> pd.DataFrame:
     """The full accuracy-versus-coverage curve for a handful of runs.
@@ -620,6 +658,7 @@ def main() -> None:
         if "p_featured_debiased" in table else {}
     write_json(config.RESULTS / "ceiling.json",
                {"raw": ceiling, "debiased_sensitivity": ceiling_debiased})
+    np.savez_compressed(config.RESULTS / "dataset_sample.npz", **dataset_sample(table))
     print(f"vote-model ceiling: best possible accuracy against a fresh panel = "
           f"{ceiling['bayes_accuracy']:.4f}; two panels agree "
           f"{ceiling['panel_agreement']:.4f} of the time")

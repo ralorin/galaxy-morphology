@@ -218,8 +218,29 @@ def _bin_centres(index):
 # --------------------------------------------------------------------------- #
 
 def fig_dataset(out_dir: Path) -> None:
-    table = load_table("gz2")
-    images = np.load(config.ARRAYS / "gz2_images.npy", mmap_mode="r")
+    # Prefer the working arrays when they are there, since they are the source of
+    # truth, and fall back to the published sample when they are not. The sample is a
+    # few megabytes in results/ and it exists so that this figure survives the cluster
+    # storage being reclaimed: without it the only figure in the paper that cannot be
+    # redrawn from the repository is this one.
+    sample_path = config.RESULTS / "dataset_sample.npz"
+    if (config.ARRAYS / "gz2_table.csv").exists():
+        table = load_table("gz2")
+        images = np.load(config.ARRAYS / "gz2_images.npy", mmap_mode="r")
+        picked = None
+    elif sample_path.exists():
+        s = np.load(sample_path, allow_pickle=False)
+        table = pd.DataFrame({"p_featured": s["p_featured"],
+                              "agreement": s["agreement"],
+                              "votes": s["votes"]})
+        images = s["sample_images"]
+        picked = pd.DataFrame({"bin": s["sample_bin"], "p_featured": s["sample_p"],
+                               "agreement": s["sample_agreement"],
+                               "votes": s["sample_votes"],
+                               "row": np.arange(len(s["sample_bin"]))})
+    else:
+        print("skipping fig_dataset: neither the arrays nor dataset_sample.npz")
+        return
 
     fig = plt.figure(figsize=(7.2, 7.0))
     gs = fig.add_gridspec(2, 3, height_ratios=[0.62, 1.0], hspace=0.34, wspace=0.32)
@@ -264,6 +285,11 @@ def fig_dataset(out_dir: Path) -> None:
     n_rows = 3
     columns = []
     for b in range(len(edges) - 1):
+        if picked is not None:
+            chosen = picked[picked["bin"] == b]
+            if len(chosen):
+                columns.append((b, chosen))
+            continue
         sub = table[(table["agreement"] >= edges[b])
                     & (table["agreement"] < edges[b + 1] + 1e-9)]
         if len(sub):
@@ -562,8 +588,10 @@ def fig_selective(out_dir: Path) -> None:
         lo = min(lo, float(part["accuracy"].min()))
     for target in (0.99, 0.95):
         ax.axhline(target, lw=0.7, color=INK_MUTED, ls=(0, (2, 3)))
-        ax.annotate(f"{target:.2f}", (1.0, target), textcoords="offset points",
-                    xytext=(-2, 3), ha="right", fontsize=6.5, color=INK_MUTED)
+        # left end, where the curves are still flat against the top of the frame and
+        # nothing is in the way; at the right end they are falling through the line
+        ax.annotate(f"{target:.2f}", (0.06, target), textcoords="offset points",
+                    xytext=(0, 3), ha="left", fontsize=6.5, color=INK_MUTED)
     _tidy(ax, "coverage (fraction classified automatically)",
           "accuracy on the covered part")
     # The whole trade-off happens in the top few points of the scale. Drawn from zero
@@ -1074,10 +1102,18 @@ def fig_gradcam(out_dir: Path) -> None:
                 continue
             i = members[r]
             ax.imshow(images[i])
-            # a single perceptually ordered ramp over the cutout, kept light enough
-            # that the galaxy stays visible underneath: the reader has to be able to
-            # see what the attribution is sitting on
-            ax.imshow(maps[i], cmap="magma", alpha=0.45, vmin=0.0, vmax=1.0)
+            # Constant alpha does not work on this imagery. The sky is nearly black and
+            # so is the low end of any perceptual ramp, so a flat wash is invisible
+            # exactly where the attribution is low and muddies the galaxy where it is
+            # high. Ramping alpha with the value instead leaves the cutout untouched
+            # where the map says nothing and lets the attended region glow, which is
+            # what the reader needs to see.
+            # The maps are peaked: a few per cent of the pixels carry the top half of
+            # the range. A linear alpha therefore shows only the summit and reads as a
+            # hard-edged blob, so the ramp is square-rooted to bring the shoulders back.
+            m = np.clip(maps[i], 0.0, 1.0)
+            im = ax.imshow(m, cmap="inferno", vmin=0.0, vmax=1.0,
+                           alpha=np.sqrt(m) * 0.75)
             ax.set_title(f"$a$={agreement[i]:.2f}", fontsize=6, color=INK_MUTED,
                          pad=2)
             if r == 0:
@@ -1085,6 +1121,12 @@ def fig_gradcam(out_dir: Path) -> None:
                             (0.5, 1.0), xycoords="axes fraction",
                             textcoords="offset points", xytext=(0, 15),
                             ha="center", fontsize=6.5, color=INK_SECOND)
+    bar = fig.colorbar(im, ax=axes, orientation="horizontal", fraction=0.035,
+                       pad=0.02, aspect=50)
+    bar.set_label("attribution, normalised within each image", fontsize=7,
+                  color=INK_SECOND)
+    bar.ax.tick_params(labelsize=6, length=0, colors=INK_MUTED)
+    bar.outline.set_visible(False)
     _save(fig, out_dir, "fig_gradcam")
 
 
