@@ -580,6 +580,44 @@ def _panel(run_id: str, cams, per_galaxy: pd.DataFrame, cols: int = 6) -> None:
     plt.close(fig)
 
 
+def _summary_path():
+    return config.RESULTS / "xai_summary.csv"
+
+
+def _merge_summary(fresh: pd.DataFrame) -> pd.DataFrame:
+    """Update the summary in place rather than replacing it.
+
+    Explaining one run used to overwrite the whole table with a single row, which is
+    exactly what happens when you go back to redo one model, and it silently destroyed
+    the other twenty-six. Rows are keyed on run_id: the ones just computed replace
+    their old versions and the rest are left alone.
+    """
+    path = _summary_path()
+    if path.exists():
+        old = pd.read_csv(path)
+        if "run_id" in old and "run_id" in fresh:
+            old = old[~old["run_id"].isin(set(fresh["run_id"]))]
+            fresh = pd.concat([old, fresh], ignore_index=True)
+    fresh = fresh.sort_values(["arch", "label_mode"]).reset_index(drop=True)
+    fresh.to_csv(path, index=False)
+    return fresh
+
+
+def rebuild_summary() -> pd.DataFrame:
+    """Reassemble xai_summary.csv from the per-run json files.
+
+    Every run that was ever explained left one behind, so the table can be rebuilt
+    without a GPU and without recomputing a single map.
+    """
+    rows = [read_json(q) for q in sorted((config.RESULTS / "xai").glob("*.json"))]
+    if not rows:
+        raise SystemExit(f"no per-run json under {config.RESULTS / 'xai'}")
+    out = pd.DataFrame(rows).sort_values(["arch", "label_mode"]).reset_index(drop=True)
+    out.to_csv(_summary_path(), index=False)
+    print(f"rebuilt {_summary_path()} from {len(rows)} per-run files")
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -592,7 +630,16 @@ def main() -> None:
     ap.add_argument("--gallery-run", default=None,
                     help="run_id whose maps are kept as arrays for the manuscript "
                          "figure; only one, since the figure shows one model")
+    ap.add_argument("--rebuild-summary", action="store_true",
+                    help="reassemble xai_summary.csv from the per-run json files "
+                         "and stop; needs no GPU")
     args = ap.parse_args()
+
+    if args.rebuild_summary:
+        out = rebuild_summary()
+        print(out[["arch", "label_mode", "method", "background_excess"]]
+              .to_string(index=False))
+        return
 
     run_ids = args.runs or []
     if args.all_checkpoints:
