@@ -39,7 +39,7 @@ AGGREGATES = (
     "calibration.csv", "risk_coverage.csv", "vote_tracking.csv",
     "cross_survey.csv", "bootstrap.csv",
     "mcnemar.csv", "architecture_pairwise.csv", "friedman.json", "wilcoxon.csv",
-    "xai_summary.csv", "xai_gallery.npz",
+    "xai_summary.csv", "xai_gallery.npz", "dataset_sample.npz",
 )
 
 
@@ -85,9 +85,12 @@ def copy_xai() -> int:
         return 0
     out = ensure_dir(TARGET / "xai")
     n = 0
-    for path in sorted(src_dir.glob("*.csv")):
-        shutil.copy2(path, out / path.name)
-        n += 1
+    # the json alongside each csv is the per-run summary, and xai_summary.csv can be
+    # rebuilt from those alone, so publishing them makes the results self-repairing
+    for pattern in ("*.csv", "*.json"):
+        for path in sorted(src_dir.glob(pattern)):
+            shutil.copy2(path, out / path.name)
+            n += 1
     return n
 
 

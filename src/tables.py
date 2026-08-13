@@ -496,6 +496,32 @@ def macros(runs: pd.DataFrame) -> str:
                 if "error_share" in frame:
                     cmd(f"errorShare{tag}Agreement",
                         f"{100 * frame['error_share'].mean():.0f}")
+            # How far each bin's models are from that bin's own ceiling. This is the
+            # comparison the paper's central claim needs and the global ceiling cannot
+            # make: a bin whose ceiling is 72% and whose models reach 66% is a
+            # different situation from one where both are at 100%.
+            per_bin = (ceiling.get("raw", ceiling) or {}).get("by_agreement_bin") or {}
+            if per_bin:
+                gaps = {}
+                for b, block in per_bin.items():
+                    rows = agr[agr["bin"] == int(b)]
+                    if rows.empty:
+                        continue
+                    gaps[int(b)] = (100 * block["bayes_accuracy"],
+                                    100 * rows["accuracy"].mean(),
+                                    100 * rows["share"].mean())
+                if gaps:
+                    lowest = min(gaps)
+                    cei, acc, _ = gaps[lowest]
+                    cmd("ceilingLowAgreement", f"{cei:.1f}")
+                    cmd("gapLowAgreement", f"{cei - acc:.1f}")
+                    saturated = {b: v for b, v in gaps.items() if v[0] - v[1] < 0.5}
+                    cmd("binsAtCeiling", f"{len(saturated)} of {len(gaps)}")
+                    cmd("shareAtCeiling",
+                        f"{sum(v[2] for v in saturated.values()):.0f}")
+                    cmd("gapWorstBin",
+                        f"{max(v[0] - v[1] for v in gaps.values()):.1f}")
+
             # the three contested bins together, which is how the prose reads it
             contested = agr[agr["bin"] <= 2]
             if not contested.empty and "error_share" in contested:
@@ -699,6 +725,7 @@ MACRO_NAMES = (
     "baselineHighAgreement baselineLowAgreement balAccHighAgreement "
     "balAccLowAgreement liftHighAgreement liftLowAgreement "
     "errorShareHighAgreement errorShareLowAgreement "
+    "ceilingLowAgreement gapLowAgreement gapWorstBin binsAtCeiling shareAtCeiling "
     "shareContested errorShareContested "
     "coverageAtNinetyNine coverageAtNinetyEight coverageAtNinetyFive coverageArch "
     "dihedralGain invarianceErrorPlain pooledGain "
