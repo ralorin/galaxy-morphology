@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.92,
+  "arch": "cnn_deep_reg",
+  "background_excess": -0.11357561132498527,
+  "background_excess_high_agreement": -0.004664604699982336,
+  "background_excess_low_agreement": -0.2045645535686586,
+  "background_reliance": 0.48836741130432515,
+  "background_reliance_high_agreement": 0.583777186256457,
+  "background_reliance_low_agreement": 0.40865797906583506,
+  "deletion_auc": 0.601527880653739,
+  "faithfulness": 0.2119410666078329,
+  "footprint_fraction": 0.3928924560546875,
+  "footprint_high_agreement": 0.41433181762695315,
+  "footprint_low_agreement": 0.37859954833984377,
+  "insertion_auc": 0.8134689472615719,
+  "label_mode": "hard",
+  "method": "gradcam",
+  "n": 200,
+  "run_id": "cnn_deep_reg_hard_d4_s128_full_bce_nfull_seed0"
+}

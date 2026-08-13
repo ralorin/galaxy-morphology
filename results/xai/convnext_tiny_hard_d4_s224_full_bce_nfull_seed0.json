@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.915,
+  "arch": "convnext_tiny",
+  "background_excess": -0.3347925457784895,
+  "background_excess_high_agreement": -0.07243833269144587,
+  "background_excess_low_agreement": -0.5096953545031851,
+  "background_reliance": 0.3252576774357962,
+  "background_reliance_high_agreement": 0.569117391160595,
+  "background_reliance_low_agreement": 0.16268453495259708,
+  "deletion_auc": 0.7994349698349833,
+  "faithfulness": 0.1446921742334962,
+  "footprint_fraction": 0.3399497767857143,
+  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_low_agreement": 0.3276201105442177,
+  "insertion_auc": 0.9441271440684795,
+  "label_mode": "hard",
+  "method": "gradcam",
+  "n": 200,
+  "run_id": "convnext_tiny_hard_d4_s224_full_bce_nfull_seed0"
+}

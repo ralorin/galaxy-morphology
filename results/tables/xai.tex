@@ -9,7 +9,33 @@
 \toprule
 \textbf{Model} & \textbf{Labels} & \textbf{Method} & \textbf{Accuracy} & \textbf{Del.}$\downarrow$ & \textbf{Ins.}$\uparrow$ & \textbf{Faith.}$\uparrow$ & \textbf{Bkg.}$\downarrow$ & \textbf{Bkg. (low agr.)}$\downarrow$ \\
 \midrule
+CNN-deep & hard & Grad-CAM & 0.941 & 0.611 & 0.817 & +0.206 & -0.045 & -0.134 \\
+CNN-deep & soft & Grad-CAM & 0.946 & 0.720 & 0.882 & +0.161 & -0.071 & -0.160 \\
+CNN-deep+reg & hard & Grad-CAM & 0.939 & 0.602 & 0.813 & +0.212 & -0.114 & -0.205 \\
+CNN-deep+reg & soft & Grad-CAM & 0.945 & 0.788 & 0.861 & +0.074 & -0.259 & -0.353 \\
+CNN-small & hard & Grad-CAM & 0.933 & 0.637 & 0.794 & +0.157 & -0.019 & -0.055 \\
+CNN-small & soft & Grad-CAM & 0.939 & 0.784 & 0.911 & +0.127 & -0.167 & -0.235 \\
+ConvNeXt-T & hard & Grad-CAM & 0.947 & 0.799 & 0.944 & +0.145 & -0.335 & -0.510 \\
 ConvNeXt-T & soft & Grad-CAM & 0.955 & 0.851 & 0.985 & +0.135 & -0.544 & -0.588 \\
+ConvNeXt-T & soft & Grad-CAM & 0.954 & 0.871 & 0.983 & +0.112 & -0.484 & -0.517 \\
+DeiT3-S/16 & hard & rollout & 0.947 & 0.663 & 0.971 & +0.308 & -0.572 & -0.596 \\
+DeiT3-S/16 & soft & rollout & 0.954 & 0.770 & 0.979 & +0.209 & -0.587 & -0.609 \\
+DenseNet-121 & hard & Grad-CAM & 0.948 & 0.734 & 0.969 & +0.235 & -0.275 & -0.389 \\
+DenseNet-121 & soft & Grad-CAM & 0.954 & 0.861 & 1.008 & +0.147 & -0.338 & -0.456 \\
+EfficientNetV2-S & hard & Grad-CAM & 0.947 & 0.709 & 0.959 & +0.250 & +0.008 & -0.035 \\
+EfficientNetV2-S & soft & Grad-CAM & 0.955 & 0.833 & 0.971 & +0.139 & +0.085 & +0.185 \\
+MobileNetV3-L & hard & Grad-CAM & 0.946 & 0.665 & 0.883 & +0.218 & -0.152 & -0.239 \\
+MobileNetV3-L & soft & Grad-CAM & 0.951 & 0.828 & 0.921 & +0.092 & -0.006 & -0.049 \\
+ResNet-50 & hard & Grad-CAM & 0.947 & 0.775 & 0.989 & +0.214 & -0.106 & -0.201 \\
+ResNet-50 & soft & Grad-CAM & 0.953 & 0.871 & 1.025 & +0.154 & -0.229 & -0.369 \\
+ResNet-50 & soft & Grad-CAM & 0.953 & 0.806 & 0.996 & +0.191 & -0.216 & -0.328 \\
+Swin-T & hard & Grad-CAM & 0.947 & 0.798 & 0.989 & +0.191 & -0.067 & -0.202 \\
+Swin-T & soft & Grad-CAM & 0.954 & 0.852 & 1.020 & +0.168 & -0.238 & -0.433 \\
+ViT-B/16 & hard & rollout & 0.946 & 0.582 & 0.972 & +0.390 & -0.418 & -0.460 \\
+ViT-B/16 & soft & rollout & 0.952 & 0.722 & 0.980 & +0.258 & -0.344 & -0.389 \\
+ViT-S/16 & hard & rollout & 0.946 & 0.700 & 0.974 & +0.273 & -0.259 & -0.293 \\
+ViT-S/16 & soft & rollout & 0.953 & 0.787 & 0.980 & +0.194 & -0.248 & -0.293 \\
+ViT-S/16 & soft & rollout & 0.951 & 0.769 & 0.986 & +0.217 & -0.434 & -0.474 \\
 \bottomrule
 \end{tabular}}
 \end{table}

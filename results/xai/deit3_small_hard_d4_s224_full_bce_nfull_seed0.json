@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.915,
+  "arch": "deit3_small",
+  "background_excess": -0.5719110645824131,
+  "background_excess_high_agreement": -0.5352538977489347,
+  "background_excess_low_agreement": -0.5963491758047321,
+  "background_reliance": 0.08813915863187258,
+  "background_reliance_high_agreement": 0.10630182610310612,
+  "background_reliance_low_agreement": 0.07603071365105021,
+  "deletion_auc": 0.6626595367491245,
+  "faithfulness": 0.30788298770785333,
+  "footprint_fraction": 0.3399497767857143,
+  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_low_agreement": 0.3276201105442177,
+  "insertion_auc": 0.9705425244569779,
+  "label_mode": "hard",
+  "method": "rollout",
+  "n": 200,
+  "run_id": "deit3_small_hard_d4_s224_full_bce_nfull_seed0"
+}

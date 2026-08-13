@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.92,
+  "arch": "densenet121",
+  "background_excess": -0.3381422309816722,
+  "background_excess_high_agreement": -0.14110104059535145,
+  "background_excess_low_agreement": -0.4560301226657957,
+  "background_reliance": 0.3241733699746195,
+  "background_reliance_high_agreement": 0.5047185316531909,
+  "background_reliance_low_agreement": 0.21615489717547418,
+  "deletion_auc": 0.8614995069056749,
+  "faithfulness": 0.14658102922141553,
+  "footprint_fraction": 0.3399497767857143,
+  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_low_agreement": 0.3276201105442177,
+  "insertion_auc": 1.0080805361270904,
+  "label_mode": "soft",
+  "method": "gradcam",
+  "n": 200,
+  "run_id": "densenet121_soft_d4_s224_full_bce_nfull_seed0"
+}

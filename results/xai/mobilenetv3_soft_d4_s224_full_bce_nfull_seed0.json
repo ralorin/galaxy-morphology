@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.915,
+  "arch": "mobilenetv3",
+  "background_excess": -0.005539622549108829,
+  "background_excess_high_agreement": 0.05923057827261977,
+  "background_excess_low_agreement": -0.048719756430261246,
+  "background_reliance": 0.6545106006651769,
+  "background_reliance_high_agreement": 0.7007863021246606,
+  "background_reliance_low_agreement": 0.623660133025521,
+  "deletion_auc": 0.8281302976608277,
+  "faithfulness": 0.09239623457193374,
+  "footprint_fraction": 0.3399497767857143,
+  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_low_agreement": 0.3276201105442177,
+  "insertion_auc": 0.9205265322327614,
+  "label_mode": "soft",
+  "method": "gradcam",
+  "n": 200,
+  "run_id": "mobilenetv3_soft_d4_s224_full_bce_nfull_seed0"
+}

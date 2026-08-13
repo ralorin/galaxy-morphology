@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.9,
+  "arch": "vit_base",
+  "background_excess": -0.4182685385093671,
+  "background_excess_high_agreement": -0.3554674962752736,
+  "background_excess_low_agreement": -0.4601358999987628,
+  "background_reliance": 0.24178168470491865,
+  "background_reliance_high_agreement": 0.2860882275767672,
+  "background_reliance_low_agreement": 0.21224398945701953,
+  "deletion_auc": 0.581948570497334,
+  "faithfulness": 0.39021147053688765,
+  "footprint_fraction": 0.3399497767857143,
+  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_low_agreement": 0.3276201105442177,
+  "insertion_auc": 0.9721600410342216,
+  "label_mode": "hard",
+  "method": "rollout",
+  "n": 200,
+  "run_id": "vit_base_hard_d4_s224_full_bce_nfull_seed0"
+}

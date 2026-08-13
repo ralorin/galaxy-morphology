@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.915,
+  "arch": "effnetv2_s",
+  "background_excess": 0.00806594390786289,
+  "background_excess_high_agreement": 0.07191988947687074,
+  "background_excess_low_agreement": -0.03450335313814234,
+  "background_reliance": 0.6681161671221486,
+  "background_reliance_high_agreement": 0.7134756133289114,
+  "background_reliance_low_agreement": 0.63787653631764,
+  "deletion_auc": 0.7088681579381227,
+  "faithfulness": 0.24989887677133082,
+  "footprint_fraction": 0.3399497767857143,
+  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_low_agreement": 0.3276201105442177,
+  "insertion_auc": 0.9587670347094536,
+  "label_mode": "hard",
+  "method": "gradcam",
+  "n": 200,
+  "run_id": "effnetv2_s_hard_d4_s224_full_bce_nfull_seed0"
+}

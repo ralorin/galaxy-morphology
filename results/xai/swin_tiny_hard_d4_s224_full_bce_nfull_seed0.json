@@ -1,0 +1,20 @@
+{
+  "accuracy_on_sample": 0.91,
+  "arch": "swin_tiny",
+  "background_excess": -0.06724523660683103,
+  "background_excess_high_agreement": 0.13509738346364236,
+  "background_excess_low_agreement": -0.2021403166538133,
+  "background_reliance": 0.5928049866074546,
+  "background_reliance_high_agreement": 0.7766531073156833,
+  "background_reliance_low_agreement": 0.47023957280196904,
+  "deletion_auc": 0.7982482089102269,
+  "faithfulness": 0.19088985688984395,
+  "footprint_fraction": 0.3399497767857143,
+  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_low_agreement": 0.3276201105442177,
+  "insertion_auc": 0.9891380658000708,
+  "label_mode": "hard",
+  "method": "gradcam",
+  "n": 200,
+  "run_id": "swin_tiny_hard_d4_s224_full_bce_nfull_seed0"
+}
