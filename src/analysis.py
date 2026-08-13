@@ -646,7 +646,18 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--skip-predictions", action="store_true",
                     help="only rebuild runs.csv, do not touch the per-galaxy analyses")
+    ap.add_argument("--dataset-sample-only", action="store_true",
+                    help="write results/dataset_sample.npz and stop. Seconds, and it "
+                         "is the one output that needs the image arrays, so it is "
+                         "worth being able to produce without the whole analysis")
     args = ap.parse_args()
+
+    if args.dataset_sample_only:
+        ensure_dir(config.RESULTS)
+        out = config.RESULTS / "dataset_sample.npz"
+        np.savez_compressed(out, **dataset_sample(load_table("gz2")))
+        print(f"wrote {out} ({out.stat().st_size / 1e6:.1f} MB)")
+        return
 
     ensure_dir(config.RESULTS)
     runs = collect_runs()
