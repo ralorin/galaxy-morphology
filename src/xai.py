@@ -477,7 +477,7 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
 
     per_galaxy = pd.DataFrame(rows)
     out_dir = ensure_dir(config.RESULTS / "xai")
-    per_galaxy.to_csv(out_dir / f"{run_id}.csv", index=False)
+    per_galaxy.to_csv(out_dir / f"{run_id}__{used}.csv", index=False)
 
     high = per_galaxy["agreement"] >= 0.6
     summary = {
@@ -511,7 +511,7 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
             float(per_galaxy.loc[~high, "footprint_fraction"].mean()),
         "accuracy_on_sample": float(per_galaxy["correct"].mean()),
     }
-    write_json(out_dir / f"{run_id}.json", summary)
+    write_json(out_dir / f"{run_id}__{used}.json", summary)
 
     if make_panel:
         _panel(run_id, cams, per_galaxy)
@@ -595,10 +595,17 @@ def _merge_summary(fresh: pd.DataFrame) -> pd.DataFrame:
     path = _summary_path()
     if path.exists():
         old = pd.read_csv(path)
-        if "run_id" in old and "run_id" in fresh:
-            old = old[~old["run_id"].isin(set(fresh["run_id"]))]
-            fresh = pd.concat([old, fresh], ignore_index=True)
-    fresh = fresh.sort_values(["arch", "label_mode"]).reset_index(drop=True)
+        # (run_id, method) rather than run_id alone: one run explained with Grad-CAM
+        # and again with Grad-CAM++ is two results, and keying on the run would make
+        # the second silently replace the first
+        keys = [k for k in ("run_id", "method") if k in old and k in fresh]
+        if keys:
+            seen = set(map(tuple, fresh[keys].itertuples(index=False, name=None)))
+            keep = [tuple(r) not in seen
+                    for r in old[keys].itertuples(index=False, name=None)]
+            fresh = pd.concat([old[keep], fresh], ignore_index=True)
+    sort_on = [c for c in ("arch", "label_mode", "method") if c in fresh]
+    fresh = fresh.sort_values(sort_on).reset_index(drop=True)
     fresh.to_csv(path, index=False)
     return fresh
 
@@ -612,7 +619,8 @@ def rebuild_summary() -> pd.DataFrame:
     rows = [read_json(q) for q in sorted((config.RESULTS / "xai").glob("*.json"))]
     if not rows:
         raise SystemExit(f"no per-run json under {config.RESULTS / 'xai'}")
-    out = pd.DataFrame(rows).sort_values(["arch", "label_mode"]).reset_index(drop=True)
+    sort_on = [c for c in ("arch", "label_mode", "method") if c in rows[0]]
+    out = pd.DataFrame(rows).sort_values(sort_on).reset_index(drop=True)
     out.to_csv(_summary_path(), index=False)
     print(f"rebuilt {_summary_path()} from {len(rows)} per-run files")
     return out
