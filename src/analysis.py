@@ -41,7 +41,7 @@ from scipy import stats
 import config
 from src.common import (bootstrap_ci, classification_metrics, coverage_at_accuracy,
                         ensure_dir, load_table, read_json, reliability_curve,
-                        risk_coverage_curve, write_json)
+                        dataset_meta, risk_coverage_curve, write_json)
 from src.registry import REGISTRY, reference_runs
 
 CONFIG_KEYS = ("arch", "label_mode", "policy", "size", "finetune", "loss",
@@ -529,9 +529,7 @@ def learning_curve_reach(runs: pd.DataFrame, ceiling: dict,
     a learning curve is steeper, and including it would flatter the extrapolation.
     """
     if train_size is None:
-        meta = config.ARRAYS / "gz2_meta.json"
-        train_size = int(read_json(meta)["split_counts"]["train"]) \
-            if meta.exists() else 0
+        train_size = int(dataset_meta().get("split_counts", {}).get("train", 0))
 
     # accept either the raw-fraction block or the whole ceiling record, since callers
     # hold the latter; with the wrong one this silently returns nothing at all

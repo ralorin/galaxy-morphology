@@ -113,6 +113,30 @@ def load_table(which: str = "gz2"):
     return pd.read_csv(path)
 
 
+def dataset_meta() -> dict:
+    """The record prepare_gz2 wrote, wherever it happens to be.
+
+    It sits next to the arrays on the cluster and is copied into results/ when the
+    results are published, so anyone working from a clone finds it in the second
+    place and not the first. Looking in one place only was silently costing the
+    learning-curve figure the true size of the training split.
+    """
+    import config
+
+    for path in (config.ARRAYS / "gz2_meta.json", config.RESULTS / "gz2_meta.json"):
+        if path.exists():
+            return read_json(path)
+    return {}
+
+
+def train_split_size() -> int:
+    counts = dataset_meta().get("split_counts", {})
+    if "train" not in counts:
+        raise SystemExit("no training-set size available: gz2_meta.json is missing "
+                         "from both the arrays and the results")
+    return int(counts["train"])
+
+
 @contextmanager
 def timer(label: str = ""):
     """Wall-clock timer. `with timer() as t: ...` then read `t.seconds`."""

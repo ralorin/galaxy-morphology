@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 import config
-from src.common import ensure_dir, read_json
+from src.common import dataset_meta, ensure_dir, read_json
 from src.registry import (ARCHITECTURES, PRETTY_ARCH, PRETTY_FAMILY, REGISTRY,
                           family_of, reference_runs)
 
@@ -382,7 +382,7 @@ def macros(runs: pd.DataFrame) -> str:
         out.append(f"\\newcommand{{\\{name}}}{{{value}}}")
 
     ref = reference(runs)
-    meta = read_json(config.ARRAYS / "gz2_meta.json") if (config.ARRAYS / "gz2_meta.json").exists() else {}
+    meta = dataset_meta()
     ceiling = read_json(config.RESULTS / "ceiling.json") if (config.RESULTS / "ceiling.json").exists() else {}
     summary = read_json(config.RESULTS / "summary.json") if (config.RESULTS / "summary.json").exists() else {}
 

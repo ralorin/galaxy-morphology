@@ -27,7 +27,8 @@ import numpy as np
 import pandas as pd
 
 import config
-from src.common import ensure_dir, load_table, read_json, risk_coverage_curve
+from src.common import (ensure_dir, load_table, read_json,
+                        risk_coverage_curve, train_split_size)
 from src.registry import ARCHITECTURES, PRETTY_ARCH, PRETTY_FAMILY, REGISTRY, family_of
 from src.tables import PRETTY_POLICY, reference
 
@@ -473,10 +474,7 @@ def fig_curve(out_dir: Path) -> None:
 
 
 def _train_split_size() -> int:
-    meta = config.ARRAYS / "gz2_meta.json"
-    if meta.exists():
-        return int(read_json(meta).get("split_counts", {}).get("train", 100000))
-    return 100000
+    return train_split_size()
 
 
 # --------------------------------------------------------------------------- #
