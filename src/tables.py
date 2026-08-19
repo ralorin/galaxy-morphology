@@ -382,6 +382,60 @@ def table_xai(runs: pd.DataFrame) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Replication on a second dataset
+# --------------------------------------------------------------------------- #
+
+def table_replication() -> str:
+    """Fashion-MNIST-H, resolved by agreement, against both of its labels.
+
+    The two accuracy columns are the same predictions scored twice. One uses the
+    panel's verdict, which is the label this paper defines; the other uses the
+    label Fashion-MNIST ships, which is what the networks were trained on, because
+    the annotations cover the test split alone.
+    """
+    path = config.RESULTS / "replication.json"
+    if not path.exists():
+        return PLACEHOLDER_TABLE % "replication"
+    rep = read_json(path)
+    edges = config.AGREEMENT_BINS
+
+    lines = []
+    for key in sorted(rep["by_bin"]):
+        row = rep["by_bin"][key]
+        b = int(key)
+        top = "--" if row["ceiling"] is None else f"{100 * row['ceiling']:.1f}"
+        lines.append(" & ".join([
+            f"{edges[b]:.1f}--{edges[b + 1]:.1f}",
+            str(row["n"]),
+            top,
+            f"{100 * row['accuracy']:.1f} "
+            f"[{100 * row['ci_panel'][0]:.1f}, {100 * row['ci_panel'][1]:.1f}]",
+            f"{100 * row['accuracy_gold']:.1f} "
+            f"[{100 * row['ci_gold'][0]:.1f}, {100 * row['ci_gold'][1]:.1f}]",
+            f"{100 * row['gold_matches_panel']:.1f}",
+            f"{100 * row['error_share']:.1f}",
+        ]) + r" \\")
+
+    pair = " and ".join(rep["dataset"]["pair"])
+    caption = (
+        f"Fashion-MNIST-H, {pair}, resolved by annotator agreement. "
+        f"Nine runs over three architectures, scored on the same "
+        f"{rep['ceiling']['n_test']} test images. "
+        r"The two accuracy columns hold the same predictions scored against "
+        r"different labels: the panel's verdict, which is the label this paper "
+        r"defines, and the label the dataset ships, which is what the networks "
+        r"were trained on because the annotations cover the test split alone. "
+        r"Brackets give a 95\% bootstrap interval over items. "
+        r"Accuracy against the original label is flat across the bins; accuracy "
+        r"against the panel is not, and it tracks the rate at which the two "
+        r"labels agree.")
+    return _wrap("\n".join(lines), caption, "tab:replication",
+                 "lrrrrrr",
+                 r"Agreement & $n$ & $A^\star$ (\%) & Against the panel (\%) & "
+                 r"Against the original (\%) & Labels agree (\%) & Errors (\%) \\")
+
+
+# --------------------------------------------------------------------------- #
 # Macros
 # --------------------------------------------------------------------------- #
 
@@ -729,6 +783,44 @@ def macros(runs: pd.DataFrame) -> str:
     else:
         cmd("galleryArch", PLACEHOLDER)
 
+    # the replication on a second dataset, and its negative control
+    rpath = config.RESULTS / "replication.json"
+    if rpath.exists():
+        rep = read_json(rpath)
+        dset, top = rep["dataset"], rep["ceiling"]
+        low = rep["by_bin"]["0"]
+        cmd("fmhPair", " and ".join(dset["pair"]))
+        cmd("fmhTest", f"{top['n_test']:,}".replace(",", "{,}"))
+        cmd("fmhMedianVotes", f"{dset['median_votes_binary']:.0f}")
+        cmd("fmhMedianVotesAll", f"{dset['median_votes']:.0f}")
+        cmd("fmhBaseline", f"{100 * dset['majority_baseline']:.1f}")
+        cmd("fmhCeiling", f"{100 * top['bayes_accuracy']:.1f}")
+        cmd("fmhPanelAgreement", f"{100 * top['panel_agreement']:.1f}")
+        cmd("fmhLabelNoise", f"{100 * top['label_noise_rate']:.1f}")
+        cmd("fmhRuns", str(int(len(pd.read_csv(config.RESULTS / "replication.csv")
+                                 ["run_id"].unique()))))
+        cmd("fmhAccPanel", f"{100 * rep['mean_accuracy']:.1f}")
+        cmd("fmhAccGold", f"{100 * rep['accuracy_against_gold']:.1f}")
+        cmd("fmhArchSpread", f"{100 * rep['architecture_spread']:.1f}")
+        cmd("fmhBinSpread", f"{100 * (rep['accuracy_high_agreement'] - rep['accuracy_low_agreement']):.1f}")
+        cmd("fmhLowAcc", f"{100 * rep['accuracy_low_agreement']:.1f}")
+        cmd("fmhHighAcc", f"{100 * rep['accuracy_high_agreement']:.1f}")
+        cmd("fmhLowCeiling", f"{100 * low['ceiling']:.1f}")
+        cmd("fmhLowGap", f"{100 * (low['ceiling'] - low['accuracy']):.1f}")
+        for key in ("train", "val", "test"):
+            cmd(f"fmh{key.capitalize()}Split",
+                f"{dset['split_counts'][key]:,}".replace(",", "{,}"))
+        cmd("fmhLowGoldMatch", f"{100 * rep['gold_matches_panel']:.1f}")
+        cmd("fmhLowShare", f"{100 * rep['share_low_agreement']:.0f}")
+        cmd("fmhLowErrorShare", f"{100 * rep['error_share_low_agreement']:.0f}")
+        cmd("fmhGoldMatchOverall", f"{100 * dset['gold_matches_panel']:.1f}")
+        control = rep.get("control_cifar10h")
+        if control:
+            cmd("cifarItems", f"{control['n_items']:,}".replace(",", "{,}"))
+            cmd("cifarVotes", f"{control['median_votes']:.0f}")
+            cmd("cifarCeiling", f"{100 * control['bayes_accuracy']:.2f}")
+            cmd("cifarContested", f"{100 * control['contested_share']:.1f}")
+
     cmd("nRuns", str(int(summary.get("n_runs", len(runs)))))
     cmd("nArchitectures", str(int(runs["arch"].nunique())))
     return "\n".join(out) + "\n"
@@ -737,6 +829,12 @@ def macros(runs: pd.DataFrame) -> str:
 # --------------------------------------------------------------------------- #
 
 MACRO_NAMES = (
+    "fmhPair fmhTest fmhMedianVotes fmhMedianVotesAll fmhBaseline fmhCeiling "
+    "fmhPanelAgreement fmhLabelNoise fmhRuns fmhAccPanel fmhAccGold "
+    "fmhArchSpread fmhBinSpread fmhLowAcc fmhHighAcc fmhLowCeiling "
+    "fmhLowGoldMatch fmhLowShare fmhLowErrorShare fmhGoldMatchOverall "
+    "fmhLowGap fmhTrainSplit fmhValSplit fmhTestSplit "
+    "cifarItems cifarVotes cifarCeiling cifarContested "
     "nGalaxies nTrain nVal nTest featuredFraction featuredFractionDebiased "
     "labelDisagreement majorityBaseline medianVotes medianVotesBinary minVotes "
     "voteCeiling panelAgreement labelNoiseRate voteCeilingDebiased "
@@ -792,7 +890,8 @@ def write_placeholders(out_dir: Path) -> None:
     """
     for name, label in (("main", "main"), ("labels", "labels"),
                         ("orientation", "orientation"), ("protocol", "protocol"),
-                        ("cross_survey", "cross"), ("xai", "xai")):
+                        ("cross_survey", "cross"), ("xai", "xai"),
+                        ("replication", "replication")):
         (out_dir / f"{name}.tex").write_text(PLACEHOLDER_TABLE % label, encoding="utf-8")
     body = [r"% Placeholders. Regenerate with `python -m src.tables --out <paper>`.",
             r"% Every macro below resolves to a red ?? until the runs exist.", ""]
@@ -829,6 +928,7 @@ def main() -> None:
         "protocol.tex": table_protocol(runs),
         "cross_survey.tex": table_cross_survey(runs),
         "xai.tex": table_xai(runs),
+        "replication.tex": table_replication(),
         "numbers.tex": macros(runs),
     }
     for name, body in written.items():

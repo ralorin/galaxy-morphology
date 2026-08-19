@@ -1128,6 +1128,75 @@ def fig_gradcam(out_dir: Path) -> None:
     _save(fig, out_dir, "fig_gradcam")
 
 
+# --------------------------------------------------------------------------- #
+# 13. The same picture on a second dataset
+# --------------------------------------------------------------------------- #
+
+def fig_replication(out_dir: Path) -> None:
+    """Fashion-MNIST-H, resolved by agreement, with the predictions scored twice.
+
+    Deliberately the same shape as the agreement figure, so that the two can be read
+    against each other. What is new here is the third curve. Fashion-MNIST-H collects
+    its votes on the test split alone, so the networks were trained on the label the
+    dataset ships rather than on the panel's verdict, and scoring the same
+    predictions against both labels separates a model's error from a change in what
+    the label means.
+    """
+    path = config.RESULTS / "replication.json"
+    if not path.exists():
+        print("skipping fig_replication: replication.json missing")
+        return
+    rep = read_json(path)
+    bins = sorted(int(b) for b in rep["by_bin"])
+    x = _bin_centres(pd.Index(bins))
+    row = [rep["by_bin"][str(b)] for b in bins]
+
+    fig, axes = plt.subplots(2, 1, figsize=(3.6, 4.6), sharex=True,
+                             gridspec_kw={"height_ratios": [1.0, 0.55], "hspace": 0.14})
+    ax = axes[0]
+
+    top = [r["ceiling"] for r in row]
+    if all(t is not None for t in top):
+        ax.plot(x, top, lw=1.0, color=INK_MUTED, ls=(0, (4, 3)),
+                label=r"$A^\star$ in bin")
+
+    for key, colour, name in (("gold", SLOT[1], "against the original label"),
+                              ("panel", SLOT[0], "against the panel")):
+        field = "accuracy_gold" if key == "gold" else "accuracy"
+        y = np.array([r[field] for r in row])
+        ci = np.array([r[f"ci_{key}"] for r in row])
+        _line(ax, x, y, colour, label=name, band=(ci[:, 0], ci[:, 1]))
+
+    # The rate at which the two labels agree is not a model result, so it is drawn
+    # as a thin reference: the point of the figure is that the accuracy against the
+    # panel lies on it.
+    agree = [r["gold_matches_panel"] for r in row]
+    ax.plot(x, agree, lw=1.0, color=INK_MUTED, label="the two labels agree")
+
+    _tidy(ax, None, "test accuracy")
+    ax.set_ylim(0.40, 1.03)
+    ax.legend(loc="lower right", fontsize=7)
+
+    ax2 = axes[1]
+    gap, w = 0.012, BAR_MAX / 2
+    share = np.array([r["share"] for r in row])
+    err = np.array([r["error_share"] for r in row])
+    ax2.bar(x - w / 2 - gap / 2, share, width=w, color=ORDINAL[0],
+            label="share of test set")
+    ax2.bar(x + w / 2 + gap / 2, err, width=w, color=ORDINAL[1],
+            label="share of all errors")
+    hot = int(np.argmax(err))
+    ax2.annotate(f"{100 * err[hot]:.0f}%", (x[hot] + w / 2 + gap / 2, err[hot]),
+                 textcoords="offset points", xytext=(0, 3), ha="center",
+                 fontsize=7, color=INK_SECOND)
+    ax2.set_ylim(0, max(0.6, float(err.max()) * 1.25))
+    _tidy(ax2, r"annotator agreement $|2p-1|$", "fraction")
+    ax2.legend(loc="upper right", fontsize=7)
+
+    _save(fig, out_dir, "fig_replication")
+
+
+
 FIGURES = {
     "dataset": fig_dataset,
     "agreement": fig_agreement,
@@ -1138,6 +1207,7 @@ FIGURES = {
     "orientation": fig_orientation,
     "pareto": fig_pareto,
     "cross_survey": fig_cross_survey,
+    "replication": fig_replication,
     "faithfulness": fig_faithfulness,
     "critical_difference": fig_critical_difference,
     "pipeline": fig_pipeline,

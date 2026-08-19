@@ -29,7 +29,7 @@ import pandas as pd
 
 import config
 from src.analysis import vote_ceiling
-from src.common import ensure_dir, read_json, write_json
+from src.common import bootstrap_ci, ensure_dir, read_json, write_json
 
 CIFAR10H = ("https://raw.githubusercontent.com/jcpeterson/cifar-10h/master/"
             "data/cifar10h-counts.npy")
@@ -125,6 +125,35 @@ def profile(runs: pd.DataFrame, table: pd.DataFrame) -> pd.DataFrame:
         on="run_id", how="left")
 
 
+def item_scores(runs: pd.DataFrame, table: pd.DataFrame) -> dict:
+    """Per-item hit rates, for the confidence intervals.
+
+    The nine runs score the same six hundred items, so seed and architecture are not
+    the uncertainty that matters here: the test split is. Each item gets the fraction
+    of runs that called it correctly, and the interval is a bootstrap over items
+    within each bin. The bin holding the near-unanimous images has two dozen members,
+    so an interval on it is not optional.
+    """
+    gold = table.set_index("row")["gold"]
+    panel, agreement, hits, hits_gold = None, None, [], []
+    for run_id in runs["run_id"]:
+        path = config.RUNS / run_id / "predictions_test.csv"
+        if not path.exists():
+            continue
+        pred = pd.read_csv(path).sort_values("row").reset_index(drop=True)
+        call = (pred["prob"].to_numpy() >= 0.5).astype(int)
+        if panel is None:
+            panel = pred["label"].to_numpy().astype(int)
+            agreement = pred["agreement"].to_numpy()
+            keys = pred["row"].to_numpy()
+        elif not np.array_equal(pred["row"].to_numpy(), keys):
+            raise SystemExit(f"{run_id}: scores a different set of items")
+        hits.append(call == panel)
+        hits_gold.append(call == pred["row"].map(gold).to_numpy().astype(int))
+    return {"panel": np.mean(hits, axis=0), "gold": np.mean(hits_gold, axis=0),
+            "agreement": agreement}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -185,6 +214,19 @@ def main() -> None:
         } for b, g in per_bin.groupby("bin")},
         "control_cifar10h": None if args.skip_control else cifar10h_control(),
     }
+    # intervals over the test items, which is the uncertainty that dominates here
+    scores = item_scores(runs, table)
+    edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
+    idx = np.clip(np.digitize(scores["agreement"], edges[1:-1]), 0, len(edges) - 2)
+    for b, entry in summary["by_bin"].items():
+        inside = idx == int(b)
+        for key in ("panel", "gold"):
+            _, lo, hi = bootstrap_ci(scores[key][inside])
+            entry[f"ci_{key}"] = [lo, hi]
+    for key in ("panel", "gold"):
+        _, lo, hi = bootstrap_ci(scores[key])
+        summary[f"ci_{key}"] = [lo, hi]
+
     write_json(config.RESULTS / "replication.json", summary)
 
     gap = summary["accuracy_high_agreement"] - summary["accuracy_low_agreement"]
@@ -200,12 +242,15 @@ def main() -> None:
           f"that label agrees with the panel only "
           f"{100 * summary['gold_matches_panel']:.1f}% of the time")
     print()
-    print(f"  {'bin':>4s} {'n':>5s} {'ceiling':>9s} {'accuracy':>9s} "
-          f"{'vs gold':>9s} {'gold=panel':>11s} {'errors':>8s}")
+    print(f"  {'bin':>4s} {'n':>5s} {'ceiling':>9s} {'against the panel':>22s} "
+          f"{'against the original':>25s} {'gold=panel':>11s} {'errors':>8s}")
     for b, row in sorted(summary["by_bin"].items()):
         top = "" if row["ceiling"] is None else f"{100 * row['ceiling']:8.1f}%"
-        print(f"  {b:>4s} {row['n']:5d} {top:>9s} {100 * row['accuracy']:8.1f}% "
-              f"{100 * row['accuracy_gold']:8.1f}% "
+        panel = (f"{100 * row['accuracy']:5.1f}% "
+                 f"[{100 * row['ci_panel'][0]:.1f}, {100 * row['ci_panel'][1]:.1f}]")
+        gold = (f"{100 * row['accuracy_gold']:5.1f}% "
+                f"[{100 * row['ci_gold'][0]:.1f}, {100 * row['ci_gold'][1]:.1f}]")
+        print(f"  {b:>4s} {row['n']:5d} {top:>9s} {panel:>22s} {gold:>25s} "
               f"{100 * row['gold_matches_panel']:10.1f}% "
               f"{100 * row['error_share']:7.1f}%")
     print()

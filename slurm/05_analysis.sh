@@ -46,6 +46,15 @@ if [ "$STAGES" != "assets" ]; then
     step python -m src.stats
 fi
 
+# The second dataset, when it is present. It is a separate sweep and a clone that
+# has only run the Galaxy Zoo jobs should still get every other table, so a missing
+# working set is a skip rather than a failure.
+if [ -f "${GZM_WORK:-$HOME/galaxy-morphology/work}/arrays/fmh_table.csv" ]; then
+    step python -m src.replication
+else
+    echo "no Fashion-MNIST-H working set, skipping the replication"
+fi
+
 step python -m src.figures --out "$PAPER"
 step python -m src.tables --out "$PAPER"
 # and into the repository, so the results can be committed from here rather than

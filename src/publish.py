@@ -40,6 +40,7 @@ AGGREGATES = (
     "cross_survey.csv", "bootstrap.csv",
     "mcnemar.csv", "architecture_pairwise.csv", "friedman.json", "wilcoxon.csv",
     "xai_summary.csv", "xai_gallery.npz", "dataset_sample.npz",
+    "replication.json", "replication.csv",
 )
 
 
@@ -56,12 +57,13 @@ def copy_aggregates() -> int:
     # The dataset record lives with the arrays rather than the results, but a dozen of
     # the manuscript's numbers come from it, so without it the published results cannot
     # regenerate the tables on their own.
-    meta = config.ARRAYS / "gz2_meta.json"
-    if meta.exists():
-        shutil.copy2(meta, TARGET / "gz2_meta.json")
-        n += 1
-    else:
-        print("  missing, skipped: gz2_meta.json")
+    for name in ("gz2_meta.json", "fmh_meta.json"):
+        meta = config.ARRAYS / name
+        if meta.exists():
+            shutil.copy2(meta, TARGET / name)
+            n += 1
+        else:
+            print(f"  missing, skipped: {name}")
     return n
 
 
