@@ -73,11 +73,17 @@ def cifar10h_control() -> dict:
 
 
 def profile(runs: pd.DataFrame, table: pd.DataFrame) -> pd.DataFrame:
-    """Accuracy inside each agreement bin, and each bin's share of the errors."""
-    test = table[table["split"] == "test"].reset_index(drop=True)
+    """Accuracy inside each agreement bin, and each bin's share of the errors.
+
+    Two accuracies are recorded for every run, and the difference between them is
+    the point of this table. One is against the panel's verdict, which is the label
+    the paper defines; the other is against the dataset's own label, which is what
+    the model was trained on because Fashion-MNIST-H collects votes on the test
+    split alone. Where the panel is unanimous the two coincide. Where it is divided
+    they need not, and a model can only be as right as the label it was given.
+    """
+    gold = table.set_index("row")["gold"]
     edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
-    binned = np.clip(np.digitize(test["agreement"].to_numpy(), edges[1:-1]),
-                     0, len(edges) - 2)
     rows = []
     for run_id in runs["run_id"]:
         path = config.RUNS / run_id / "predictions_test.csv"
@@ -85,10 +91,18 @@ def profile(runs: pd.DataFrame, table: pd.DataFrame) -> pd.DataFrame:
             print(f"  no predictions for {run_id}")
             continue
         pred = pd.read_csv(path)
-        correct = ((pred["prob"].to_numpy() >= 0.5).astype(int)
-                   == pred["label"].to_numpy().astype(int))
-        errors = (~correct).sum()
-        for b in range(len(config.AGREEMENT_BINS) - 1):
+        pred["gold"] = pred["row"].map(gold)
+        if pred["gold"].isna().any():
+            raise SystemExit(f"{run_id}: predictions carry rows absent from the table")
+
+        call = (pred["prob"].to_numpy() >= 0.5).astype(int)
+        correct = call == pred["label"].to_numpy().astype(int)
+        against_gold = call == pred["gold"].to_numpy().astype(int)
+        errors = int((~correct).sum())
+        binned = np.clip(np.digitize(pred["agreement"].to_numpy(), edges[1:-1]),
+                         0, len(edges) - 2)
+
+        for b in range(len(edges) - 1):
             inside = binned == b
             if not inside.any():
                 continue
@@ -99,6 +113,9 @@ def profile(runs: pd.DataFrame, table: pd.DataFrame) -> pd.DataFrame:
                 "n": int(inside.sum()),
                 "share": float(inside.mean()),
                 "accuracy": float(correct[inside].mean()),
+                "accuracy_gold": float(against_gold[inside].mean()),
+                "gold_matches_panel": float((pred["gold"].to_numpy()[inside]
+                                             == labels).mean()),
                 "majority_baseline": float(base),
                 "lift": float(correct[inside].mean() - base),
                 "error_share": float((~correct[inside]).sum() / errors) if errors else 0.0,
@@ -137,6 +154,10 @@ def main() -> None:
     ensure_dir(config.RESULTS)
     per_bin.to_csv(config.RESULTS / "replication.csv", index=False)
 
+    # accuracy against the dataset's own label, pooled over the bins of each run
+    weighted = per_bin.assign(_w=per_bin["accuracy_gold"] * per_bin["n"])
+    per_run = weighted.groupby("run_id")[["_w", "n"]].sum()
+
     lowest = per_bin[per_bin["bin"] == 0]
     highest = per_bin[per_bin["bin"] == per_bin["bin"].max()]
     summary = {
@@ -150,6 +171,18 @@ def main() -> None:
         "accuracy_high_agreement": float(highest["accuracy"].mean()),
         "share_low_agreement": float(lowest["share"].mean()),
         "error_share_low_agreement": float(lowest["error_share"].mean()),
+        "accuracy_against_gold": float((per_run["_w"] / per_run["n"]).mean()),
+        "gold_matches_panel": float(np.average(
+            lowest["gold_matches_panel"], weights=lowest["n"])),
+        "by_bin": {str(b): {
+            "share": float(g["share"].mean()),
+            "n": int(g["n"].iloc[0]),
+            "accuracy": float(g["accuracy"].mean()),
+            "accuracy_gold": float(g["accuracy_gold"].mean()),
+            "gold_matches_panel": float(g["gold_matches_panel"].iloc[0]),
+            "ceiling": ceiling["by_agreement_bin"].get(str(b), {}).get("bayes_accuracy"),
+            "error_share": float(g["error_share"].mean()),
+        } for b, g in per_bin.groupby("bin")},
         "control_cifar10h": None if args.skip_control else cifar10h_control(),
     }
     write_json(config.RESULTS / "replication.json", summary)
@@ -162,6 +195,20 @@ def main() -> None:
           f"{100 * summary['error_share_low_agreement']:.0f}% of the errors")
     print(f"  spread across agreement bins {100 * gap:.1f} points, across architectures "
           f"{100 * summary['architecture_spread']:.1f}")
+    print(f"  against the dataset's own label the same predictions score "
+          f"{100 * summary['accuracy_against_gold']:.1f}%, and in the contested bin "
+          f"that label agrees with the panel only "
+          f"{100 * summary['gold_matches_panel']:.1f}% of the time")
+    print()
+    print(f"  {'bin':>4s} {'n':>5s} {'ceiling':>9s} {'accuracy':>9s} "
+          f"{'vs gold':>9s} {'gold=panel':>11s} {'errors':>8s}")
+    for b, row in sorted(summary["by_bin"].items()):
+        top = "" if row["ceiling"] is None else f"{100 * row['ceiling']:8.1f}%"
+        print(f"  {b:>4s} {row['n']:5d} {top:>9s} {100 * row['accuracy']:8.1f}% "
+              f"{100 * row['accuracy_gold']:8.1f}% "
+              f"{100 * row['gold_matches_panel']:10.1f}% "
+              f"{100 * row['error_share']:7.1f}%")
+    print()
     print(f"  wrote {config.RESULTS / 'replication.json'}")
 
 

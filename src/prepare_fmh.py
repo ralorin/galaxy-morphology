@@ -127,8 +127,15 @@ def build(src: dict, first: str, second: str, min_share: float,
     images = np.repeat(images[..., None], 3, axis=-1)      # grey into three channels
 
     p_train = (gold_train[train_sel] == b).astype(np.float64)
+    # The dataset's own label, kept alongside the panel's. On the training split the
+    # two are the same thing by construction, because no votes were collected there;
+    # on the test split they can differ, and how often they differ is the quantity
+    # that separates a model's error from a change in what the label means.
+    gold = np.concatenate([(gold_train[train_sel] == b).astype(int),
+                           (gold_test[sel] == b).astype(int)])
     table = pd.DataFrame({
         "p_featured": np.concatenate([p_train, p_test]),
+        "gold": gold,
         "votes": np.concatenate([np.zeros(len(train_sel), dtype=int), n_votes[sel]]),
         "votes_binary": np.concatenate([np.zeros(len(train_sel), dtype=int),
                                         two.astype(int)]),
@@ -154,6 +161,7 @@ def build(src: dict, first: str, second: str, min_share: float,
         "median_votes": float(test["votes"].median()),
         "median_votes_binary": float(test["votes_binary"].median()),
         "mean_agreement": float(test["agreement"].mean()),
+        "gold_matches_panel": float((test["gold"] == test["label"]).mean()),
         "source": {"images": FASHION, "annotations": COUNTS},
     }
     return table, images, meta
@@ -195,6 +203,8 @@ def main() -> None:
     print(f"  {meta['positive_class']} is {100 * meta['featured_fraction']:.1f}% of "
           f"the test split, so a constant classifier scores "
           f"{100 * meta['majority_baseline']:.1f}%")
+    print(f"  the panel's verdict matches the dataset's own label on "
+          f"{100 * meta['gold_matches_panel']:.1f}% of the test split")
     print(f"  wrote {out / 'fmh_table.csv'} and {out / 'fmh_images.npy'}")
 
 
