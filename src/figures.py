@@ -209,6 +209,21 @@ def _optional(name: str) -> pd.DataFrame | None:
     return pd.read_csv(path) if path.exists() else None
 
 
+def _bin_width() -> float:
+    return config.AGREEMENT_BINS[1] - config.AGREEMENT_BINS[0]
+
+
+def _paired_bar_width() -> float:
+    """Half of a bar pair, sized so the pair sits inside its own bin.
+
+    The bins are 0.2 wide and the bars are centred on the bin centre, so a pair wider
+    than 0.2 crosses into the neighbouring bin and the reader attributes it to the
+    wrong one. That is not hypothetical: the contested bin's error bar was centred on
+    the 0.2 tick, which is the boundary between the first two bins.
+    """
+    return min(BAR_MAX / 2, _bin_width() * 0.36)
+
+
 def _bin_centres(index):
     return np.array([(config.AGREEMENT_BINS[int(b)] + config.AGREEMENT_BINS[int(b) + 1]) / 2
                      for b in index])
@@ -401,7 +416,7 @@ def fig_agreement(out_dir: Path) -> None:
         share = part.groupby("bin")["share"].mean()
         x = _bin_centres(share.index)
         gap = 0.012                      # surface gap, not a stroke
-        w = BAR_MAX / 2
+        w = _paired_bar_width()
         ax2.bar(x - w / 2 - gap / 2, share.to_numpy(), width=w, color=ORDINAL[0],
                 label="share of test set")
         if "error_share" in part:
@@ -1178,7 +1193,7 @@ def fig_replication(out_dir: Path) -> None:
     ax.legend(loc="lower right", fontsize=7)
 
     ax2 = axes[1]
-    gap, w = 0.012, BAR_MAX / 2
+    gap, w = 0.012, _paired_bar_width()
     share = np.array([r["share"] for r in row])
     err = np.array([r["error_share"] for r in row])
     ax2.bar(x - w / 2 - gap / 2, share, width=w, color=ORDINAL[0],

@@ -790,7 +790,6 @@ def macros(runs: pd.DataFrame) -> str:
         dset, top = rep["dataset"], rep["ceiling"]
         low = rep["by_bin"]["0"]
         cmd("fmhPair", " and ".join(dset["pair"]))
-        cmd("fmhTest", f"{top['n_test']:,}".replace(",", "{,}"))
         cmd("fmhMedianVotes", f"{dset['median_votes_binary']:.0f}")
         cmd("fmhMedianVotesAll", f"{dset['median_votes']:.0f}")
         cmd("fmhBaseline", f"{100 * dset['majority_baseline']:.1f}")
@@ -829,7 +828,7 @@ def macros(runs: pd.DataFrame) -> str:
 # --------------------------------------------------------------------------- #
 
 MACRO_NAMES = (
-    "fmhPair fmhTest fmhMedianVotes fmhMedianVotesAll fmhBaseline fmhCeiling "
+    "fmhPair fmhMedianVotes fmhMedianVotesAll fmhBaseline fmhCeiling "
     "fmhPanelAgreement fmhLabelNoise fmhRuns fmhAccPanel fmhAccGold "
     "fmhArchSpread fmhBinSpread fmhLowAcc fmhHighAcc fmhLowCeiling "
     "fmhLowGoldMatch fmhLowShare fmhLowErrorShare fmhGoldMatchOverall "

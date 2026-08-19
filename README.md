@@ -116,11 +116,23 @@ sbatch slurm/04_xai.sh
 #    --gallery-run <run_id> also keeps the cutouts and maps of one model as arrays,
 #    which is what the manuscript's attribution figure is drawn from
 
-# 6. analysis, statistics, figures and LaTeX tables  (cpu)
+# 6. the second dataset  (gpu-small, minutes)
+python -m src.prepare_fmh --inspect       # which class pairs the panel divides on
+sbatch slurm/06_replication.sh
+#    Fashion-MNIST-H, about sixty-seven annotations per test image. Optional: step 7
+#    skips it cleanly when the working set is absent.
+
+# 7. analysis, statistics, figures and LaTeX tables  (cpu)
 PAPER_DIR=$HOME/paper5 sbatch slurm/05_analysis.sh
-#    STAGES=assets skips the two expensive stages and only redoes the figures,
-#    the tables and the copy into results/, which takes minutes
+#    STAGES=assets skips the two expensive stages and only redoes the replication,
+#    the figures, the tables and the copy into results/, which takes minutes
 ```
+
+Steps 1 to 6 need the cluster; nothing after them does. Everything under `results/`
+is committed, and `python -m src.figures` and `python -m src.tables` rebuild all
+thirteen figures and all eight LaTeX tables from it on a laptop with pandas and
+matplotlib, with no GPU, no image arrays and no checkpoints. That is the intended way
+to check a number in the paper.
 
 Two repair paths worth knowing about, because both cost seconds and the alternative
 is hours. `python -m src.xai --rebuild-summary` reassembles `xai_summary.csv` from the
@@ -173,6 +185,7 @@ src/
   download_data.py    fetch the public datasets
   prepare_gz2.py      label table, splits, uint8 image cache
   prepare_decals.py   the same for Galaxy10 DECaLS
+  prepare_fmh.py      Fashion-MNIST-H, one binary pair with its votes kept
   datasets.py         Dataset and the four augmentation policies
   models.py           backbones, the scratch baselines, D4 pooling wrapper
   train.py            one run end to end; also cross-survey scoring
@@ -180,6 +193,7 @@ src/
   analysis.py         aggregation, the vote-model ceiling, agreement-resolved tables
   stats.py            bootstrap CIs, McNemar, Friedman/Nemenyi, paired tests
   xai.py              Grad-CAM, attention rollout, faithfulness scores
+  replication.py      the ceiling and the agreement profile on the second dataset
   figures.py          every figure in the paper
   tables.py           every LaTeX table, plus numbers.tex
 slurm/                batch scripts for the cluster partitions
@@ -195,7 +209,8 @@ for the runs the explanation and transfer stages need.
 Aggregated, in `$GZM_WORK/results/`: `runs.csv` (one tidy row per run),
 `agreement.csv`, `ceiling.json`, `selective.csv`, `calibration.csv`,
 `cross_survey.csv`, `bootstrap.csv`, `mcnemar.csv`, `architecture_pairwise.csv`,
-`friedman.json`, `wilcoxon.csv`, `xai_summary.csv`, `risk_coverage.csv`, and two
+`friedman.json`, `wilcoxon.csv`, `xai_summary.csv`, `risk_coverage.csv`,
+`replication.json` and `replication.csv` for the second dataset, and two
 small arrays, `xai_gallery.npz` and `dataset_sample.npz`, which carry the cutouts and
 attribution maps the two image figures need. With those in place every figure in the
 paper redraws from a clone of this repository, with no cluster and no GPU.
