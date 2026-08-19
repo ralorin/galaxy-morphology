@@ -1,0 +1,25 @@
+{
+  "dataset": "fashion-mnist-h",
+  "pair": [
+    "pullover",
+    "coat"
+  ],
+  "positive_class": "coat",
+  "min_share": 0.7,
+  "n_items": 12637,
+  "split_counts": {
+    "train": 10800,
+    "val": 1200,
+    "test": 637
+  },
+  "featured_fraction": 0.3626373626373626,
+  "majority_baseline": 0.6373626373626373,
+  "median_votes": 67.0,
+  "median_votes_binary": 53.0,
+  "mean_agreement": 0.366748435494229,
+  "gold_matches_panel": 0.7048665620094191,
+  "source": {
+    "images": "https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion",
+    "annotations": "https://raw.githubusercontent.com/ishida-lab/irreducible/main/data/fmh_counts.csv"
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "accuracy_against_gold": 0.9691261119832547,
+  "accuracy_high_agreement": 0.9583333333333334,
+  "accuracy_low_agreement": 0.5243664717348928,
+  "architecture_spread": 0.0073260073260073,
+  "best_accuracy": 0.7221350078492935,
+  "by_bin": {
+    "0": {
+      "accuracy": 0.5243664717348928,
+      "accuracy_gold": 0.9623131903833657,
+      "ceiling": 0.757762654877661,
+      "ci_gold": [
+        0.9382716049382717,
+        0.9837556855100715
+      ],
+      "ci_panel": [
+        0.45092592592592584,
+        0.5958576998050682
+      ],
+      "error_share": 0.4434458582789747,
+      "gold_matches_panel": 0.49707602339181284,
+      "n": 171,
+      "share": 0.2684458398744113
+    },
+    "1": {
+      "accuracy": 0.7119565217391304,
+      "accuracy_gold": 0.9716183574879227,
+      "ceiling": 0.978648727792639,
+      "ci_gold": [
+        0.9504830917874397,
+        0.9879227053140096
+      ],
+      "ci_panel": [
+        0.6461352657004831,
+        0.7747584541062801
+      ],
+      "error_share": 0.2889817939717483,
+      "gold_matches_panel": 0.717391304347826,
+      "n": 184,
+      "share": 0.28885400313971743
+    },
+    "2": {
+      "accuracy": 0.7950765136393879,
+      "accuracy_gold": 0.9707252162341984,
+      "ceiling": 0.9997271650335248,
+      "ci_gold": [
+        0.9567531603459747,
+        0.9833666001330672
+      ],
+      "ci_panel": [
+        0.7332002661343979,
+        0.8483033932135728
+      ],
+      "error_share": 0.1863491122471566,
+      "gold_matches_panel": 0.7964071856287425,
+      "n": 167,
+      "share": 0.2621664050235479
+    },
+    "3": {
+      "accuracy": 0.8473748473748474,
+      "accuracy_gold": 0.9658119658119657,
+      "ceiling": 0.9999997945589152,
+      "ci_gold": [
+        0.9328449328449329,
+        0.9914529914529915
+      ],
+      "ci_panel": [
+        0.7741147741147741,
+        0.9096459096459095
+      ],
+      "error_share": 0.07577035247238018,
+      "gold_matches_panel": 0.8351648351648352,
+      "n": 91,
+      "share": 0.14285714285714285
+    },
+    "4": {
+      "accuracy": 0.9583333333333334,
+      "accuracy_gold": 1.0,
+      "ceiling": 0.999999999999348,
+      "ci_gold": [
+        1.0,
+        1.0
+      ],
+      "ci_panel": [
+        0.875,
+        1.0
+      ],
+      "error_share": 0.005452883029740178,
+      "gold_matches_panel": 0.9583333333333334,
+      "n": 24,
+      "share": 0.03767660910518053
+    }
+  },
+  "ceiling": {
+    "bayes_accuracy": 0.925480234471227,
+    "bayes_accuracy_ci": [
+      0.9156541054267731,
+      0.9351445275429761
+    ],
+    "by_agreement_bin": {
+      "0": {
+        "bayes_accuracy": 0.757762654877661,
+        "n": 180,
+        "share": 0.282574568288854
+      },
+      "1": {
+        "bayes_accuracy": 0.978648727792639,
+        "n": 179,
+        "share": 0.28100470957613816
+      },
+      "2": {
+        "bayes_accuracy": 0.9997271650335248,
+        "n": 163,
+        "share": 0.25588697017268447
+      },
+      "3": {
+        "bayes_accuracy": 0.9999997945589152,
+        "n": 91,
+        "share": 0.14285714285714285
+      },
+      "4": {
+        "bayes_accuracy": 0.999999999999348,
+        "n": 24,
+        "share": 0.03767660910518053
+      }
+    },
+    "column": "p_featured",
+    "label_noise_rate": 0.0745197655287731,
+    "median_votes": 53.0,
+    "n_test": 637,
+    "panel_agreement": 0.8943217213757774,
+    "panel_size_column": "votes_binary"
+  },
+  "ci_gold": [
+    0.9588348159776732,
+    0.9785452642595499
+  ],
+  "ci_panel": [
+    0.6776469562183847,
+    0.7462105354962498
+  ],
+  "control_cifar10h": {
+    "bayes_accuracy": 0.99701325,
+    "contested_share": 0.0603,
+    "median_votes": 51.0,
+    "n_items": 10000
+  },
+  "dataset": {
+    "dataset": "fashion-mnist-h",
+    "featured_fraction": 0.3626373626373626,
+    "gold_matches_panel": 0.7048665620094191,
+    "majority_baseline": 0.6373626373626373,
+    "mean_agreement": 0.366748435494229,
+    "median_votes": 67.0,
+    "median_votes_binary": 53.0,
+    "min_share": 0.7,
+    "n_items": 12637,
+    "pair": [
+      "pullover",
+      "coat"
+    ],
+    "positive_class": "coat",
+    "source": {
+      "annotations": "https://raw.githubusercontent.com/ishida-lab/irreducible/main/data/fmh_counts.csv",
+      "images": "https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion"
+    },
+    "split_counts": {
+      "test": 637,
+      "train": 10800,
+      "val": 1200
+    }
+  },
+  "error_share_low_agreement": 0.4434458582789747,
+  "gold_matches_panel": 0.49707602339181284,
+  "mean_accuracy": 0.7120181405895691,
+  "share_low_agreement": 0.2684458398744113
+}
