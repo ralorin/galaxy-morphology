@@ -19,6 +19,12 @@
 #
 # Twelve thousand 28-pixel images per run, so this is small: the whole grid is
 # minutes per run rather than hours. The four-hour wall clock is slack, not need.
+#
+# No augmentation, deliberately. The flip policy mirrors both ways, and a garment
+# has a canonical up direction where a galaxy does not, so imposing the vertical
+# symmetry here would contradict the orientation argument this paper makes. The
+# replication is about where the residual error lands, not about augmentation, so
+# the recipe stays minimal and identical across the three architectures.
 
 set -e
 
@@ -44,7 +50,7 @@ for arch in $ARCHS; do
         echo
         echo "--- $arch seed $seed ---   $(date +%H:%M:%S)"
         python -m src.train --dataset fmh --arch "$arch" --label-mode hard \
-               --policy flip --seed "$seed" --epochs 12 --patience 4
+               --policy none --seed "$seed" --epochs 12
     done
 done
 
