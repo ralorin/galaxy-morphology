@@ -19,9 +19,8 @@ Concretely, the pipeline produces
   needs can be traded against how much of the sky it hands to a human;
 * an orientation study: augmentation over the dihedral group $D_4$ against
   invariance built into the network by construction;
-* saliency maps with three faithfulness scores rather than a gallery of
-  heatmaps — deletion, insertion and how much attribution mass lands outside the
-  galaxy;
+* saliency maps scored rather than admired: deletion, insertion, and how much
+  attribution mass lands outside the galaxy, quoted against the uniform-map null;
 * zero-shot transfer from SDSS to the DESI Legacy Imaging Surveys.
 
 ## Data
@@ -114,10 +113,19 @@ sbatch --array=0-280%2 slurm/02_train_array.sh
 # 5. cross-survey evaluation and the explanations  (gpu-small)
 sbatch slurm/03_cross_survey.sh
 sbatch slurm/04_xai.sh
+#    --gallery-run <run_id> also keeps the cutouts and maps of one model as arrays,
+#    which is what the manuscript's attribution figure is drawn from
 
 # 6. analysis, statistics, figures and LaTeX tables  (cpu)
 PAPER_DIR=$HOME/paper5 sbatch slurm/05_analysis.sh
+#    STAGES=assets skips the two expensive stages and only redoes the figures,
+#    the tables and the copy into results/, which takes minutes
 ```
+
+Two repair paths worth knowing about, because both cost seconds and the alternative
+is hours. `python -m src.xai --rebuild-summary` reassembles `xai_summary.csv` from the
+per-run json files, and `python -m src.analysis --dataset-sample-only` writes the
+sample the dataset figure needs without redoing the analysis.
 
 Replace `280` with whatever `build_jobs` reports. The `%2` is the two-GPU-per-user
 limit on `gpu-small`; raise it if the limit changes. Every training run checks for
@@ -187,7 +195,10 @@ for the runs the explanation and transfer stages need.
 Aggregated, in `$GZM_WORK/results/`: `runs.csv` (one tidy row per run),
 `agreement.csv`, `ceiling.json`, `selective.csv`, `calibration.csv`,
 `cross_survey.csv`, `bootstrap.csv`, `mcnemar.csv`, `architecture_pairwise.csv`,
-`friedman.json`, `wilcoxon.csv`, `xai_summary.csv`.
+`friedman.json`, `wilcoxon.csv`, `xai_summary.csv`, `risk_coverage.csv`, and two
+small arrays, `xai_gallery.npz` and `dataset_sample.npz`, which carry the cutouts and
+attribution maps the two image figures need. With those in place every figure in the
+paper redraws from a clone of this repository, with no cluster and no GPU.
 
 `src/tables.py` also writes `numbers.tex`, a file of `\newcommand` macros for every
 figure the manuscript quotes in prose. Nothing numeric is typed into the paper by

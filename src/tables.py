@@ -188,8 +188,15 @@ def table_labels(runs: pd.DataFrame, tracking: pd.DataFrame | None) -> str:
 
 
 def table_orientation(runs: pd.DataFrame) -> str:
+    # the pooled arm is the point of this table, so reference_runs() cannot be used;
+    # its conditions are spelled out instead, and the input size matters as much here
+    # as anywhere. Without it the resolution sweep lands in the D4 row and drags it
+    # down by three thousandths, which is enough to make the table say pooling wins
+    # while the macros say it loses.
+    native = runs["arch"].map(lambda a: REGISTRY[a].input_size if a in REGISTRY else None)
     sub = runs[(runs["label_mode"] == "soft") & (runs["finetune"] == "full")
-               & (runs["train_size"] == 0) & (runs["loss"] == "bce")]
+               & (runs["train_size"] == 0) & (runs["loss"] == "bce")
+               & (runs["pretrained"]) & (runs["size"] == native)]
     lines = []
     for arch in ("resnet50", "convnext_tiny", "vit_small"):
         first = True
@@ -333,8 +340,14 @@ def table_xai(runs: pd.DataFrame) -> str:
     lines = []
     for _, row in xai.sort_values(["arch", "label_mode"]).iterrows():
         acc = runs[runs["run_id"] == row["run_id"]]["test_accuracy"]
+        # the orientation-pooled runs share an architecture and a target with their
+        # plain counterparts, so without the tag three pairs of rows look like
+        # duplicates carrying different numbers
+        pooled = bool(runs[runs["run_id"] == row["run_id"]]
+                      ["orientation_pooled"].fillna(False).any())
+        name = PRETTY_ARCH.get(row["arch"], row["arch"])
         lines.append(" & ".join([
-            PRETTY_ARCH.get(row["arch"], row["arch"]),
+            f"{name} (pooled)" if pooled else name,
             row["label_mode"],
             {"gradcam": "Grad-CAM", "gradcam++": "Grad-CAM++",
              "rollout": "rollout"}.get(row["method"], row["method"]),
@@ -565,9 +578,13 @@ def macros(runs: pd.DataFrame) -> str:
         cmd("pooledGain", f"{100 * diff.mean():+.2f}")
 
     # ImageNet initialisation, done properly this time
+    # initialisation is the free axis, so everything else is pinned, size included:
+    # the resolution sweep is pretrained and would otherwise sit in the ImageNet arm
+    # at 112 pixels and understate what pretraining is worth
     pre = runs[(runs["label_mode"] == "soft") & (runs["policy"] == "d4")
                & (runs["finetune"] == "full") & (runs["loss"] == "bce")
-               & (runs["train_size"] == 0) & (~runs["orientation_pooled"])]
+               & (runs["train_size"] == 0) & (~runs["orientation_pooled"])
+               & (runs["size"] == native)]
     if "pretrained" in pre and pre["pretrained"].nunique() > 1:
         yes = pre[pre["pretrained"]].groupby("arch")["test_accuracy"].mean()
         no = pre[~pre["pretrained"]].groupby("arch")["test_accuracy"].mean()
@@ -577,7 +594,8 @@ def macros(runs: pd.DataFrame) -> str:
             cmd("pretrainGainMax", f"{100 * (yes[shared] - no[shared]).max():+.1f}")
     depth = runs[(runs["label_mode"] == "soft") & (runs["policy"] == "d4")
                  & (runs["loss"] == "bce") & (runs["train_size"] == 0)
-                 & (~runs["orientation_pooled"]) & (runs["pretrained"])]
+                 & (~runs["orientation_pooled"]) & (runs["pretrained"])
+                 & (runs["size"] == native)]
     full = depth[depth["finetune"] == "full"].groupby("arch")["test_accuracy"].mean()
     fz = depth[depth["finetune"] == "frozen"].groupby("arch")["test_accuracy"].mean()
     shared = full.index.intersection(fz.index)
@@ -588,6 +606,12 @@ def macros(runs: pd.DataFrame) -> str:
     cpath = config.RESULTS / "cross_survey.csv"
     if cpath.exists():
         cross = pd.read_csv(cpath)
+        # The orientation-pooled runs are a different object: one wrapper around a
+        # backbone, evaluated eight times. The table and the figure both leave them
+        # out, so the counts quoted in the prose have to leave them out as well, or
+        # the text says twenty-seven evaluations over a table that prints twenty-four.
+        if "orientation_pooled" in cross:
+            cross = cross[~cross["orientation_pooled"].fillna(False).astype(bool)]
         if not cross.empty and "balanced_accuracy_drop_tuned" in cross:
             cmd("decalsDropTuned",
                 f"{100 * cross['balanced_accuracy_drop_tuned'].mean():.1f}")

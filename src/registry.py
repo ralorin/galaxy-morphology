@@ -79,7 +79,11 @@ def reference_runs(runs, label_mode: str | None = None):
     predicate had already drifted apart in five places.
     """
     native = runs["arch"].map(lambda a: REGISTRY[a].input_size if a in REGISTRY else None)
-    keep = ((runs["policy"] == "d4")
+    # The replication runs on a second dataset share every other setting, so without
+    # this they would land in the pool behind every headline number in the paper.
+    dataset = runs["dataset"] if "dataset" in runs else "gz2"
+    keep = ((dataset == "gz2")
+            & (runs["policy"] == "d4")
             & (runs["finetune"] == "full")
             & (runs["loss"] == "bce")
             & (runs["train_size"].fillna(0).astype(int) == 0)

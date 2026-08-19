@@ -121,9 +121,27 @@ def build_targets(table: pd.DataFrame, label_mode: str) -> tuple[pd.DataFrame, n
     return table, weights
 
 
+DATASETS = {
+    "gz2": ("gz2_table.csv", "gz2_images.npy"),
+    "fmh": ("fmh_table.csv", "fmh_images.npy"),
+}
+
+
 def build_datasets(cfg: dict, norm) -> tuple[GalaxyDataset, GalaxyDataset, GalaxyDataset]:
-    table = load_gz2_table()
-    images = config.ARRAYS / "gz2_images.npy"
+    # Galaxy Zoo 2 unless a run asks for the replication set. Both tables carry the
+    # same columns, so nothing below this line knows which one it is looking at.
+    name = cfg.get("dataset", "gz2")
+    if name not in DATASETS:
+        raise SystemExit(f"unknown dataset {name!r}; known: {', '.join(DATASETS)}")
+    table_file, image_file = DATASETS[name]
+    if name == "gz2":
+        table = load_gz2_table()
+    else:
+        path = config.ARRAYS / table_file
+        if not path.exists():
+            raise SystemExit(f"missing {path}; run src.prepare_{name} first")
+        table = pd.read_csv(path)
+    images = config.ARRAYS / image_file
 
     train = table[table["split"] == "train"].reset_index(drop=True)
     train = subsample_train(train, cfg["train_size"], cfg["seed"])
@@ -425,6 +443,8 @@ def main() -> None:
     ap.add_argument("--jobs-csv", type=Path, default=None)
     ap.add_argument("--task-id", type=int, default=None)
     ap.add_argument("--arch", choices=models.ARCHITECTURES, default=None)
+    ap.add_argument("--dataset", choices=sorted(DATASETS), default=None,
+                    help="gz2 is the study; fmh is the Fashion-MNIST-H replication")
     ap.add_argument("--label-mode", choices=LABEL_MODES, default=None)
     ap.add_argument("--policy", default=None)
     ap.add_argument("--size", type=int, default=None)
@@ -466,7 +486,8 @@ def main() -> None:
         print(f"job {args.task_id} of {len(jobs)}: {cfg}")
     else:
         cfg = {
-            "arch": args.arch, "label_mode": args.label_mode, "policy": args.policy,
+            "arch": args.arch, "dataset": args.dataset,
+            "label_mode": args.label_mode, "policy": args.policy,
             "size": args.size, "finetune": args.finetune, "loss": args.loss,
             "train_size": args.train_size, "seed": args.seed, "epochs": args.epochs,
             "batch_size": args.batch_size, "lr": args.lr,

@@ -26,6 +26,7 @@ CONFIDENT_AGREEMENT = 0.6
 def default_config() -> dict:
     return {
         "arch": "resnet50",
+        "dataset": "gz2",        # "fmh" for the Fashion-MNIST-H replication
         "label_mode": "hard",
         "policy": "d4",
         "size": None,            # None -> the architecture's native size
@@ -53,6 +54,8 @@ def run_id(cfg: dict) -> str:
         f"n{cfg['train_size']}" if cfg["train_size"] else "nfull",
         f"seed{cfg['seed']}",
     ]
+    if cfg.get("dataset", "gz2") != "gz2":
+        parts.insert(0, cfg["dataset"])
     if cfg["orientation_pooled"]:
         parts.append("op")
     if not cfg.get("pretrained", True):

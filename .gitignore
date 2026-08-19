@@ -15,8 +15,10 @@ work/
 *.npy
 *.pt
 *.pth
+# (the two .npz under results/ are deliberate: they are the few megabytes
+#  that let the figures redraw without the cluster)
 
-# results/ IS committed -- see results/README.md. It holds the aggregate tables,
+# results/ IS committed; see results/README.md. It holds the aggregate tables,
 # the per-run metrics and the figures, which are small and are the record behind
 # the paper. The per-galaxy prediction files are not: they are hundreds of
 # megabytes and regenerable from the checkpoints.

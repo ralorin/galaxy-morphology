@@ -44,8 +44,8 @@ from src.common import (bootstrap_ci, classification_metrics, coverage_at_accura
                         dataset_meta, risk_coverage_curve, write_json)
 from src.registry import REGISTRY, reference_runs
 
-CONFIG_KEYS = ("arch", "label_mode", "policy", "size", "finetune", "loss",
-               "train_size", "seed", "orientation_pooled", "pretrained")
+CONFIG_KEYS = ("arch", "dataset", "label_mode", "policy", "size", "finetune",
+               "loss", "train_size", "seed", "orientation_pooled", "pretrained")
 METRIC_KEYS = ("accuracy", "balanced_accuracy", "precision", "recall", "f1", "mcc",
                "auc_roc", "auc_pr", "brier", "ece", "nll")
 
@@ -65,6 +65,7 @@ def collect_runs() -> pd.DataFrame:
         row = {"run_id": m.get("run_id", path.parent.name)}
         row.update({k: cfg.get(k) for k in CONFIG_KEYS})
         row["pretrained"] = cfg.get("pretrained", True)
+        row["dataset"] = cfg.get("dataset", "gz2")
         row["train_size"] = cfg.get("train_size") or 0     # 0 means "the whole split"
         row["epochs_run"] = m.get("epochs_run")
         row["best_epoch"] = m.get("best_epoch")
